@@ -1,0 +1,15 @@
+#!/bin/sh
+NAME=$(basename $(pwd))
+# if remote access is enabled, then there should be
+# SPICE_PASSWORD=password
+SPICE_PORT=$(find_free_port 5900)
+. /etc/vws/vm.conf
+{qemubinary} -name $NAME {accel} \
+{drive} \
+{cdrom} \
+{net} \
+{usb} \
+{sound} \
+$MONITOR_OPTIONS \
+$SPICE_OPTIONS \
+$PROCESS_OPTIONS

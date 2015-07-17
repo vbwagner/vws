@@ -1,0 +1,35 @@
+#!/usr/bin/python
+from ConfigParser import ConfigParser
+import socket
+config=ConfigParser({"SharedVMs":"/var/cache/vws/shared","AutostartVMs":"/var/cache/vws/auto"})
+def find_vm(name):
+    search_path=[os.environ['HOME']+"/VWs",
+        config.get("directories","SharedVMs"),
+        config.get("directories","AutostartVMs")]
+    for dirname in search_path:
+        if name in os.listdir(dirname):
+            return dirname+"/"+name
+    raise ValueError("Machine "+name+" not found.")
+
+def connect_vm(vm_dir):
+    sock=socket.socket(socket.AF_UNIX)
+    sock.connect(vm_dir+"/monitor")
+
+def get_spice_url(sock):
+    f=sock.makefile("r")
+    sock.send("info spice\n")
+    line=""
+    url=None
+    while not line.startswith("(qemu)"):
+        line=f.getline().strip("\n\r")
+        if url is not None:
+            continue
+        n=line.find("address:")
+        if n != -1:
+            url=line[n+9:]
+            if url.startswith('*:'):
+                url="localhost"+url[1:]
+    f.close()
+    return "spice://"+url      
+
+

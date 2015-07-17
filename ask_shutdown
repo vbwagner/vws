@@ -1,0 +1,17 @@
+#!/usr/bin/wish
+if {![llength $argv]} {
+	puts stderr "Usage $argv0 machinename"
+	exit 1
+}
+set name [lindex $argv 0]
+label .top -text "Virtual machine [lindex $argv 0] is still running" -font {serif 20}
+frame .buttons 
+button .buttons.shutdown -text "Shut down" -command "exec vws shutdown $name
+destroy ."
+button .buttons.suspend -text "Suspend" -command "exec vws save $name
+destroy ."
+button .buttons.bgd -text "Run in background" -command "destroy ." -default active
+pack .buttons.shutdown .buttons.suspend .buttons.bgd -side left -expand n -padx 20 -pady 10
+#.top configure -wraplength [winfo reqwidth .buttons]p
+pack .top -side top -expand y -fill x -padx 10 -pady 20
+pack .buttons -side top -expand n
