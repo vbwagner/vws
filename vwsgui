@@ -9,4 +9,4 @@ if [ $? -gt 0 ]; then
 	exit 1
 fi
 spicy $uri </dev/null
-vws running $1 && /usr/lib/vms/ask_shutdown $1
+vws spiceuri $1 >/dev/null && /usr/lib/vms/ask_shutdown $1

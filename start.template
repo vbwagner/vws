@@ -1,15 +1,27 @@
 #!/bin/sh
+# Get machine name from current directory name
 NAME=$(basename $(pwd))
 # if remote access is enabled, then there should be
 # SPICE_PASSWORD=password
+QEMU_AUDIO_DRV=spice
+export QEMU_AUDIO_DRV
+if [ -n "$SPICE_PASSWORD" ]; then
+   SPICE_AUTH="password=$SPICE_PASSWORD"
+else
+   SPICE_AUTH="disable-ticketing,addr=127.0.0.1"
+fi
 SPICE_PORT=$(find_free_port 5900)
-. /etc/vws/vm.conf
+
 {qemubinary} -name $NAME {accel} \
 {drive} \
 {cdrom} \
 {net} \
 {usb} \
 {sound} \
-$MONITOR_OPTIONS \
-$SPICE_OPTIONS \
-$PROCESS_OPTIONS
+-chardev socket,server,nowait,path=/home/vitus/asta.monitor,id=monitor \
+-mon chardev=monitor,mode=readline \
+-vga qxl \
+-spice port=$SPICE_PORT,$SPICE_AUTH \
+-device virtio-serial -chardev spicevmc,id=vdagent,name=vdagent \
+-device virtserialport,chardev=vdagent,name=com.redhat.spice.0 \
+-daemonize -pidfile pid
