@@ -24,4 +24,8 @@ SPICE_PORT=$(find_free_port 5900)
 -spice port=$SPICE_PORT,$SPICE_AUTH \
 -device virtio-serial -chardev spicevmc,id=vdagent,name=vdagent \
 -device virtserialport,chardev=vdagent,name=com.redhat.spice.0 \
+-device ich9-usb-ehci1,id=usb \
+-device ich9-usb-uhci1,masterbus=usb.0,firstport=0,multifunction=on \
+-chardev spicevmc,name=usbredir,id=usbredirchardev1 \
+-device usb-redir,chardev=usbredirchardev1,id=usbredirdev1 \
 -daemonize -pidfile pid
