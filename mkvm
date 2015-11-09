@@ -1,0 +1,25 @@
+#!/usr/bin/python
+import os
+options={'qemubinary':'qemu-system-x86_64',
+"accel":"-enable-kvm",
+"memory":"1024M",
+"drive":"-drive media=disk,index=0,if=virtio,file=drive0.qcow2",
+"cdrom":"-drive media=cdrom,index=2,if=ide",
+"sound":"-sound hda",
+"net":"-net nic,macaddr=%s -net bridge,br=lxc0",
+"usb":"-usb"}
+
+with open("start.template","r") as f:
+	template=f.read()
+
+vmdir = "~/VWs/%s" % name
+
+os.mkdir(vmdir)
+with open(vmdir +"/start",w) as f:
+	f.write(template.format(options)
+os.chmod(0755,vmdir + "/start")
+os.system("qemu-img create -f qcow2 "+vmdir+"/drive0.qcow2")
+
+	
+
+

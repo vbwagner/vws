@@ -11,10 +11,16 @@ else
    SPICE_AUTH="disable-ticketing,addr=127.0.0.1"
 fi
 SPICE_PORT=$(find_free_port 5900)
+if [ "$1" = '-cdrom' ]; then
+	shift
+	CDROM="file=$1"
+	shift
+fi
 
 {qemubinary} -name $NAME {accel} \
+-m {memory}
 {drive} \
-{cdrom} \
+{cdrom}$CDROM \
 {net} \
 {usb} \
 {sound} \

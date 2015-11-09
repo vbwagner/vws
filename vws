@@ -1,8 +1,10 @@
 #!/usr/bin/python
 from ConfigParser import ConfigParser
 from argparse import ArgumentParser
+import fcntl
 import socket
 import errno
+import re
 import os,sys
 config=ConfigParser({"SharedVMs":"/var/cache/vws/shared","AutostartVMs":"/var/cache/vws/auto"})
 def find_vm(name):
@@ -14,10 +16,11 @@ def find_vm(name):
             return dirname+"/"+name
     raise ValueError("Machine "+name+" not found.")
 
+
 def connect_vm(vm_dir):
     sock=socket.socket(socket.AF_UNIX)
     sock.connect(vm_dir+"/monitor")
-    greeting=sock.recv()
+    greeting=sock.recv(1024)
     return sock
 
 def send_command(sock,command):
@@ -25,17 +28,17 @@ def send_command(sock,command):
     try:
         sock.send(command+"\n")
         answer=""
-        while not answer.endswith("(qemu)"):
-            chunk=sock.recv()
-            print "Got chunk = ",repr(chunk)
+        while not answer.endswith("(qemu) "):
+            chunk=sock.recv(1024)
+            #print "Got chunk = ",repr(chunk)
             if chunk == '':
                 raise IOError("Unexpected EOF From monitor")
-            answer+=sock.recv()
+            answer+=chunk
     finally:
         fcntl.flock(sock,fcntl.LOCK_UN)
     return answer
 
-def cmd_spiceurl(options):
+def spiceurl(options):
     output=send_command(options.sock,"info spice")
     url=None
     for    line in output.split("\n"):
@@ -51,21 +54,49 @@ def cmd_spiceurl(options):
 #
 # command implementation
 #
+
+def cmd_spiceuri(options):
+    print spiceurl(options)
+
+
 def cmd_start(options):
-    pass
+    if options.stopped:
+        arg=""
+        if options.cdrom:
+            arg=" -cdrom "+options.cdrom
+        cmd=options.dir+"/start"+arg
+        os.system(cmd)
+    if options.gui:
+        uri = spiceurl(options)
+        os.system("remore-viewer $uri &")
+    elif not options.stopped:
+        print >>sys.stderr,"VM already running"
+        
 def cmd_stop(options):
-    send_command(options.sock,'system_powerdown')
+    print send_command(options.sock,'system_powerdown')
     
 def cmd_reset(options):
-    send_command(options.sock,'system_reset')
+    print send_command(options.sock,'system_reset')
 def cmd_cdrom(options):
+    if options.id  is None:
+        # Search for devices which could be interpreted as CDROM
+        devlist=send_command(options.sock,"info block")
+        for dev in  re.findall("([-\\w]+): [^\n]+\n    Removable device:",devlist):
+            if re.search("cd",dev):
+                options.id=dev
+                break
+    if options.id is None:
+        print >>sys.stderr, "No CDROM device found among:\n"+devlist;
+        sys.exit(1)
+    if options.file == "":
+        print >>sys.stderr, "Please specify either --eject or iso image"
+        sys.exit(1)
     if options.file is None:
         answer=send_command(options.sock,"eject "+options.id)
     else:
         answer=send_command(options.sock, "change %s %s" % (options.id, 
                             options.file))
     print answer
-    raise NotImplementedError
 def cmd_usb_insert(options):
     raise NotImplementedError
 def cmd_usb_list(options):
@@ -76,6 +107,17 @@ def cmd_usb_remove(options):
 def cmd_usb_attached(options):
     answer=send_command(options.sock,"info usb")
     print answer
+def cmd_list(options):
+    search_path=[os.environ['HOME']+"/VWs",
+        config.get("directories","SharedVMs"),
+        config.get("directories","AutostartVMs")]
+    for dirname in search_path:
+        if not os.access(dirname+"/.",os.X_OK):
+            continue
+        for vmname in os.listdir(dirname):
+            if os.access(dirname+"/"+vmname+"/start",os.X_OK):
+                print vmname
+    
 #
 # Utility functions for arg parsing
 #
@@ -99,6 +141,12 @@ config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
 
 args=ArgumentParser()
 cmds=args.add_subparsers(dest='command',help="sub-command help")
+p=cmds.add_parser("list",help="List existing VWs")
+p.add_argument("--state",action='store_const',const=True,default=False,
+                dest='state',help='Show state of the machine')
+p.add_argument("--addr",action='store_const',const=True,default=False,
+                dest='addr',help='Show mac address and spice port')
+
 # Power management
 p=new_command(cmds,'start',help='Start VM and connect to console')
 p.add_argument('--no-gui',dest='gui',action='store_const',const=False,
@@ -111,9 +159,9 @@ new_command(cmds,'save',help='Save VM state and stop emulation')
 new_command(cmds,'reset',help='Reboot a guest OS')
 # Removable devices management
 p=new_command(cmds,'cdrom',help='manage CDROM Drive')
-p.add_argument('--id',type=str,default='cdrom0',
+p.add_argument('--id',type=str,default=None,
                help='Identifier of CDROM drive if VM has more than one')
-p.add_argument('file',help='ISO image or special file to connect to drive')
+p.add_argument('file',nargs="?",default='',help='ISO image or special file to connect to drive')
 p.add_argument('--eject',dest='file',action='store_const',const=None)
 usb=cmds.add_parser('usb').add_subparsers(dest='subcommand',help='manage USB devices')
 p=new_command(usb,'insert',help='attach device to the virtual machine')
@@ -140,6 +188,7 @@ p=new_command(cmds,'monitor',help='connect stdin/stdout to monitor of VM')
 p=new_command(cmds,'spiceuri',help='Output spice URI of machine')
 parsed_args=args.parse_args(sys.argv[1:])
 
+parsed_args.stopped = False
 stopped_vm_commands = ['start','snapshot','revert','commit','snapshots']
 if hasattr(parsed_args,'machine'):
     parsed_args.dir=find_vm(parsed_args.machine)
@@ -151,11 +200,13 @@ if hasattr(parsed_args,'machine'):
             if not parsed_args.command in stopped_vm_commands:
                 print >>sys.stderr, "Virtual machine %s is not running."%parsed_args.machine
                 sys.exit(1)
+            else:
+                parsed_args.stopped = True
         else:
             raise e
-print repr(parsed_args)
 funcname="cmd_"+parsed_args.command
-if hasattr(parsed_args."subcommand"):
+
+if hasattr(parsed_args,"subcommand"):
     funcname+="_"+parsed_args.subcommand
 try:
    func=globals()[funcname]
