@@ -6,7 +6,6 @@ import socket
 import errno
 import re
 import os,sys
-config=ConfigParser({"SharedVMs":"/var/cache/vws/shared","AutostartVMs":"/var/cache/vws/auto"})
 def find_vm(name):
     search_path=[os.environ['HOME']+"/VWs",
         config.get("directories","SharedVMs"),
@@ -108,6 +107,7 @@ def cmd_usb_attached(options):
     answer=send_command(options.sock,"info usb")
     print answer
 def cmd_list(options):
+    count = 0
     search_path=[os.environ['HOME']+"/VWs",
         config.get("directories","SharedVMs"),
         config.get("directories","AutostartVMs")]
@@ -116,7 +116,10 @@ def cmd_list(options):
             continue
         for vmname in os.listdir(dirname):
             if os.access(dirname+"/"+vmname+"/start",os.X_OK):
+                count += 1
                 print vmname
+    if not count:
+        sys.exit(1)
     
 #
 # Utility functions for arg parsing
@@ -135,8 +138,8 @@ def new_command(cmds,name,**kwargs):
 
 
 config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',  
-    'AuthoStartVMs':'/var/cache/vws/autostart'})
-
+    'AutoStartVMs':'/var/cache/vws/autostart'})
+config.add_section('directories')
 config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
 
 args=ArgumentParser()
