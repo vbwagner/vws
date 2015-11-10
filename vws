@@ -63,11 +63,15 @@ def cmd_start(options):
         arg=""
         if options.cdrom:
             arg=" -cdrom "+options.cdrom
-        cmd=options.dir+"/start"+arg
-        os.system(cmd)
+        cwd=os.getcwd()
+        os.chdir(options.dir)
+        os.system("./start%s" % arg)
+        os.chdir(cwd)
+        os.sleep(2)
+        options.sock = connect_vm(options.dir)
     if options.gui:
         uri = spiceurl(options)
-        os.system("remore-viewer $uri &")
+        os.system("remote-viewer %s &"%uri)
     elif not options.stopped:
         print >>sys.stderr,"VM already running"
         
