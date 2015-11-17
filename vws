@@ -12,6 +12,8 @@ def find_vm(name):
         config.get("directories","SharedVMs"),
         config.get("directories","AutostartVMs")]
     for dirname in search_path:
+        if not os.access(dirname,os.X_OK):
+            continue
         if name in os.listdir(dirname):
             return dirname+"/"+name
     raise ValueError("Machine "+name+" not found.")
