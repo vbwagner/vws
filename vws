@@ -2,10 +2,11 @@
 from ConfigParser import ConfigParser
 from argparse import ArgumentParser
 import fcntl
-import socket
+import socket,select
 import errno
 import re
 import os,sys,time
+VERSION=0.1
 def find_vm(name):
     search_path=[os.environ['HOME']+"/VWs",
         config.get("directories","SharedVMs"),
@@ -76,10 +77,25 @@ def cmd_start(options):
         os.system("remote-viewer %s &" % uri)
     elif not options.stopped:
         print >>sys.stderr,"VM already running"
-        
 def cmd_stop(options):
     print send_command(options.sock,'system_powerdown')
-    
+def cmd_monitor(options):
+    try:
+        print "(qemu) ",
+        sys.stdout.flush()
+        while True:
+            r,w,x=select.select([sys.stdin,options.sock],[],[])
+            if sys.stdin in r:
+                cmd = sys.stdin.readline().rstrip()
+                answer=send_command(options.sock,cmd)
+                n=answer.index('\n')
+                print answer[n+1:],
+                sys.stdout.flush()
+            elif options.sock in r:
+                print "UNSOLICITED MESSAGE %"+options.sock.readline().rstrip()
+    except KeyboardInterrupt:
+        print "Keyboard interrupt"
+        sys.exit()
 def cmd_reset(options):
     print send_command(options.sock,'system_reset')
 def cmd_cdrom(options):
@@ -102,13 +118,25 @@ def cmd_cdrom(options):
         answer=send_command(options.sock, "change %s %s" % (options.id, 
                             options.file))
     print answer
+def find_usb(options,devices):
+    if hasattr("pattern",options):
+        pass 
+    elif not hasattr("address",options):
+        print >>sys.stderr,"Addess or search pattern for device is not specified"
+        sys.exit(1)
+    else:
+        return options.address
 def cmd_usb_insert(options):
-    raise NotImplementedError
+    address=find_usb(options)
+    answer=send_command(options.sock,"usb_add host:%s" % address)
+    print answer
 def cmd_usb_list(options):
-    os.system(lspci)
-
+    os.system("lsusb")
 def cmd_usb_remove(options):
-    raise NotImplementedError
+    address=find_usb(options)
+    answer=send_command(options.sock,"usb_del %s" % address)
+    print answer
+    
 def cmd_usb_attached(options):
     answer=send_command(options.sock,"info usb")
     print answer
@@ -126,7 +154,8 @@ def cmd_list(options):
                 print vmname
     if not count:
         sys.exit(1)
-    
+def cmd_version(options):
+    print VERSION
 #
 # Utility functions for arg parsing
 #
@@ -155,7 +184,7 @@ p.add_argument("--state",action='store_const',const=True,default=False,
                 dest='state',help='Show state of the machine')
 p.add_argument("--addr",action='store_const',const=True,default=False,
                 dest='addr',help='Show mac address and spice port')
-
+p=cmds.add_parser("version",help="show vws version")
 # Power management
 p=new_command(cmds,'start',help='Start VM and connect to console')
 p.add_argument('--no-gui',dest='gui',action='store_const',const=False,
@@ -175,10 +204,10 @@ p.add_argument('--eject',dest='file',action='store_const',const=None)
 usb=cmds.add_parser('usb').add_subparsers(dest='subcommand',help='manage USB devices')
 p=new_command(usb,'insert',help='attach device to the virtual machine')
 p.add_argument('pattern',help='Pattern of device name to look up in lsusb')
-p.add_argument('--address',nargs=1,help='exact address bus:device')
+p.add_argument('--address',type=str,dest='address',nargs=1,help='exact address bus:device')
 p=new_command(usb,'remove',help='detach connected usb device')
 p.add_argument('pattern',help='Pattern of device name to look up in lsusb')
-p.add_argument('--address',nargs=1,help='exact address bus:device')
+p.add_argument('--address',type=str,dest='address',nargs=1,help='exact address bus:device')
 p=new_command(usb,'attached',help='list devices attached to vm')
 usb.add_parser('list',help='list devices available in the host system')
 # Snapshot management
