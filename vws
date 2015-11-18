@@ -14,15 +14,27 @@ def find_vm(name):
     for dirname in search_path:
         if not os.access(dirname,os.X_OK):
             continue
-        if name in os.listdir(dirname):
+        if ( name in os.listdir(dirname) and
+             os.access(dirname+"/"+name+"/start",os.X_OK)):
             return dirname+"/"+name
     raise ValueError("Machine "+name+" not found.")
 
 
 def connect_vm(vm_dir):
     sock=socket.socket(socket.AF_UNIX)
-    sock.connect(vm_dir+"/monitor")
-    greeting=sock.recv(1024)
+    if not os.access(vm_dir+"/monitor",os.W_OK):
+        return None
+    try:
+        sock.connect(vm_dir+"/monitor")
+    except IOError as e:
+        if e.errno == errno.ECONNREFUSED:
+            # virtal machine is not running
+            return None
+        else:
+            raise e
+    r,w,x=select.select([sock],[],[],0.001)
+    if sock in r:
+        greeting=sock.recv(1024)
     return sock
 
 def send_command(sock,command):
@@ -150,10 +162,28 @@ def cmd_list(options):
     for dirname in search_path:
         if not os.access(dirname+"/.",os.X_OK):
             continue
+        maxlen=0
+        vms=[]
         for vmname in os.listdir(dirname):
             if os.access(dirname+"/"+vmname+"/start",os.X_OK):
                 count += 1
-                print vmname
+                f=[vmname]
+                if maxlen < len(vmname):
+                    maxlen = len(vmname)
+                if options.state:
+                    sock = connect_vm(dirname+"/"+vmname)
+                    if sock is None:
+                        state = "stopped"
+                    else:
+                        sock.close()
+                        state = "running"
+                    f.append(state)
+                vms.append(f)
+        for f in sorted(vms):
+            if len(f)==2:
+                print "%*s %s" % (-maxlen,f[0],f[1])
+            else:
+                print f[0]
     if not count:
         sys.exit(1)
 def cmd_version(options):
@@ -232,18 +262,14 @@ parsed_args.stopped = False
 stopped_vm_commands = ['start','snapshot','revert','commit','snapshots']
 if hasattr(parsed_args,'machine'):
     parsed_args.dir=find_vm(parsed_args.machine)
-    try:
-        parsed_args.sock=connect_vm(parsed_args.dir)
-    except IOError as e:
-        if e.errno == errno.ECONNREFUSED:
-            # virtal machine is not running
-            if not parsed_args.command in stopped_vm_commands:
-                print >>sys.stderr, "Virtual machine %s is not running."%parsed_args.machine
-                sys.exit(1)
-            else:
-                parsed_args.stopped = True
+    parsed_args.sock=connect_vm(parsed_args.dir)
+    if parsed_args.sock  is None:
+        if not parsed_args.command in stopped_vm_commands:
+            print >>sys.stderr, "Virtual machine %s is not running."%parsed_args.machine
+            sys.exit(1)
         else:
-            raise e
+            parsed_args.stopped = True
+
 funcname="cmd_"+parsed_args.command
 
 if hasattr(parsed_args,"subcommand"):
