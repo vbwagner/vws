@@ -24,7 +24,7 @@ fi
 {net} \
 {usb} \
 {sound} \
--chardev socket,server,nowait,path=/home/vitus/asta.monitor,id=monitor \
+-chardev socket,server,nowait,path=monitor,id=monitor \
 -mon chardev=monitor,mode=readline \
 -vga qxl \
 -spice port=$SPICE_PORT,$SPICE_AUTH \
