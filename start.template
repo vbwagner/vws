@@ -13,12 +13,12 @@ fi
 SPICE_PORT=$(find_free_port 5900)
 if [ "$1" = '-cdrom' ]; then
 	shift
-	CDROM="file=$1"
+	CDROM=",file=$1"
 	shift
 fi
 
 {qemubinary} -name $NAME {accel} \
--m {memory}
+-m {memory} \
 {drive} \
 {cdrom}$CDROM \
 {net} \
@@ -26,7 +26,7 @@ fi
 {sound} \
 -chardev socket,server,nowait,path=monitor,id=monitor \
 -mon chardev=monitor,mode=readline \
--vga qxl \
+-vga {vga} \
 -spice port=$SPICE_PORT,$SPICE_AUTH \
 -device virtio-serial -chardev spicevmc,id=vdagent,name=vdagent \
 -device virtserialport,chardev=vdagent,name=com.redhat.spice.0 \

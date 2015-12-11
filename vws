@@ -188,6 +188,89 @@ def cmd_list(options):
         sys.exit(1)
 def cmd_version(options):
     print VERSION
+
+def cmd_create(parsed_args):
+    libdir="/usr/local/lib/vws"
+    drivename="drive0.qcow2"
+    options={'qemubinary':'qemu-system-x86_64',
+    "accel":"-enable-kvm",
+    "memory":"1024M",
+    "vga":'qxl',
+    "drive":"-drive media=disk,index=0,if={interface},file={image}",
+    "cdrom":"-drive media=cdrom,index=2,if=ide",
+    "sound":"-soundhw hda",
+    "usb":"-usb"}
+    macaddr=":".join(map(lambda x: "%02x"%ord(x),chr(0x52)+os.urandom(5)))
+
+    if parsed_args.shared:
+        machinedir = config.get("directories","SharedVMs")+"/"+parsed_args.name
+        dirmode = 0755
+    else:
+        machinedir = os.environ["HOME"]+"/VWs/"+parsed_args.name
+        dirmode = 0775
+
+    if parsed_args.net != 'user':
+        bridges = list_bridges()
+        if not parsed_args.net in bridges:
+            print >>sys.stderr,"No such bridge %s. Available ones %s"%(parsed_args.net,", ".join(bridges))
+            sys.exit(1)
+        options["net"]="-net nic,macaddr=%s -net bridge,br=%s"%(macaddr,parsed_args.net),
+        
+    else:
+        options["net"]="-net nic,macaddr=%s -net user"%(macaddr,)
+
+    options["qemubinary"] = 'qemu-system-'+parsed_args.arch
+    options["vga"]=parsed_args.vga
+    if not parsed_args.arch in ('i386','x86_64'):
+        print >>sys.stderr,"KVM acceleration disabled due to target architecture"
+        options.accel = ''
+    elif not os.access("/dev/kvm",os.W_OK):
+        print >>sys.stderr,"KVM acceleration disabled due to unavailability on the host system"
+        options.accel = ''
+
+    if not parsed_args.usb:
+        options["usb"]=''
+
+    if not parsed_args.sound:
+        options["sound"]=''
+    else:
+        options["sound"]='-soundhw '+parsed_args.sound
+
+    options["memory"]=parsed_args.mem
+
+
+    #  Creating directory for VM
+    os.makedirs(machinedir,dirmode)
+    driveopts={"interface":parsed_args.diskif,"image":drivename}
+    if parsed_args.image:
+        # Copying image file
+        print >>sys.stderr,"Copying %s to %s"%(parsed_args.image,machinedir+"/"+drivename) 
+        os.system("qemu-img convert -O qcow2 -p %s %s/%s"%(parsed_args.image,machinedir+"/"+drivename))
+        os.chdir(machinedir)
+    else:
+        print >>sys.stderr,"Creating new image file"
+        os.chdir(machinedir)
+        os.system("qemu-img create  -f qcow2 %s %s"%(drivename,parsed_args.size))
+
+    options["drive"]=options["drive"].format(**driveopts) 
+    if parsed_args.debug:
+        print repr(driveopts),repr(options["drive"])
+        print repr(options)
+    with open(libdir+"/start.template","r") as f:
+        template=f.read()
+    with open("start","w") as script:
+        script.write(template.format(**options))
+
+    os.chmod('start',0755)
+
+    # If installation media is specified vws start for new vm
+    if parsed_args.install:
+        start_opts=Namespace(command='start',cdrom=parsed_args.install,stopped=True)
+        cmd_start(start_opts)
+
+
+
+
 #
 # Utility functions for arg parsing
 #
@@ -253,10 +336,30 @@ p.add_argument('filename',help='image filename to write screenshot to')
 p=new_command(cmds,'record',help='Record audio output from VM')
 p.add_argument('filename',help='wav file to record autdio to')
 new_command(cmds,'stoprecord',help='stop recording audio')
+# Create new VM
+p=new_command(cmds,'create',help="Create new VM")
+p.add_argument("--no-usb",help="Disable USB controller",action='store_const', const = False, default=True, dest="usb")
+p.add_argument("--size",help="Size of primary disk images",dest="size",default="20G");
+p.add_argument("--arch",help="Emulated architecture",dest="arch",default='x86_64');
+p.add_argument("--no-sound",help="Disable sound card",action='store_const',const = None,default='hda',  dest="sound")
+p.add_argument("--sound",help="Specify sound card type",dest='sound',default='hda')
+p.add_argument("--vga",help="specify video card type (cirrus,std,vmwae,qxl) default qxl",dest="vga",default="qxl")
+p.add_argument("--net",help="Network - 'user' or bridge name",dest='net',default="user")
+p.add_argument("--mem",help="Size of memory",dest="mem",default="1024M")
+p.add_argument("--diskif",help="Disk interface",dest="diskif",default="virtio")
+p.add_argument('--shared',help='Create shared VM instead of private one',action='store_const',const= True,dest='shared',default=False)
+p.add_argument('--image',help='Existing disk image to import',dest='image',default=None)
+p.add_argument('--install',help='ISO image to install OS from',dest='install',default=None)
 # Miscellenia
 p=new_command(cmds,'monitor',help='connect stdin/stdout to monitor of VM')
 p=new_command(cmds,'spiceuri',help='Output spice URI of machine')
+
 parsed_args=args.parse_args(sys.argv[1:])
+
+# Create command is totally different, so it is handled separately
+if parsed_args.command == 'create':
+    cmd_create(parsed_args)
+    sys.exit(0)
 
 parsed_args.stopped = False
 stopped_vm_commands = ['start','snapshot','revert','commit','snapshots']
