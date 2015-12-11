@@ -92,7 +92,10 @@ def cmd_start(options):
     elif not options.stopped:
         print >>sys.stderr,"VM already running"
 def cmd_stop(options):
-    print send_command(options.sock,'system_powerdown')
+    if options.hard:
+        print send_command(options.sock,'quit')
+    else:
+        print send_command(options.sock,'system_powerdown')
 def cmd_monitor(options):
     try:
         print "(qemu) ",
@@ -112,6 +115,8 @@ def cmd_monitor(options):
         sys.exit()
 def cmd_reset(options):
     print send_command(options.sock,'system_reset')
+def cmd_save(options):
+    print send_command(options.sock,'savevm')
 def cmd_cdrom(options):
     if options.id  is None:
         # Search for devices which could be interpreted as CDROM
@@ -134,25 +139,46 @@ def cmd_cdrom(options):
     print answer
 def find_usb(options,devices):
     if hasattr("pattern",options):
-        pass 
+        for dev in devies:
+            if re.search(options.pattern,dev[1]):
+                options.address=dev[0]
+                break
     elif not hasattr("address",options):
         print >>sys.stderr,"Addess or search pattern for device is not specified"
         sys.exit(1)
     else:
         return options.address
+def get_host_devices():
+    f=os.popen("lsusb","r")
+    l=[]
+    for dev in f:
+        m=re.match('Bus (\d+) Device (\d+): (.*)$',dev)
+        if m:
+            l.append((m.group(1)+"."+m.group(2),m.group(3)))
+    f.close()
+    return l
+def get_vm_devices(sock):
+    answer=send_command(sock,"info usb")
+    l=[]
+    for dev in answer.split("\n"):
+        m=re.match('Device (\d+\.\d), .*?, Product (.*)$',dev)
+        if m:
+            l.append((m.group(1),m.group(2)))
+    return l
 def cmd_usb_insert(options):
-    address=find_usb(options)
+    address=find_usb(options,get_host_devices())
     answer=send_command(options.sock,"usb_add host:%s" % address)
     print answer
 def cmd_usb_list(options):
     os.system("lsusb")
 def cmd_usb_remove(options):
-    address=find_usb(options)
+    address=find_usb(options,get_vm_devices(options.sock))
     answer=send_command(options.sock,"usb_del %s" % address)
     print answer
     
 def cmd_usb_attached(options):
-    answer=send_command(options.sock,"info usb")
+    for t in get_host_devices(options.sock):
+        print "Address %s : %s"%(t[0],t[1])
     print answer
 def cmd_list(options):
     count = 0
