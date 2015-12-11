@@ -189,7 +189,15 @@ def cmd_list(options):
 def cmd_version(options):
     print VERSION
 
+def validate_size(size):
+    return re.match('\d+[KMG]',size) is not None
 def cmd_create(parsed_args):
+    if not parsed_args.image and not validate_size(parsed_args.size):
+        print >>sys.stderr,"Invalid size of disk specifed %s. Should have K, M or G suffix"%parsed_args.size
+        sys.exit(1)
+    if not validate_size(parsed_args.mem):    
+        print >>sys.stderr,"Invalid size of memory specifed %s. Should have K, M or G suffix"%parsed_args.size
+        sys.exit(1)
     libdir="/usr/local/lib/vws"
     drivename="drive0.qcow2"
     options={'qemubinary':'qemu-system-x86_64',
@@ -294,29 +302,38 @@ config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
 
 args=ArgumentParser()
 cmds=args.add_subparsers(dest='command',help="sub-command help")
-p=cmds.add_parser("list",help="List existing VWs")
+p=cmds.add_parser("list",help="List existing VWs",description="List existing VWs")
 p.add_argument("--state",action='store_const',const=True,default=False,
                 dest='state',help='Show state of the machine')
 p.add_argument("--addr",action='store_const',const=True,default=False,
                 dest='addr',help='Show mac address and spice port')
+p.add_argument("--usb",action='store_const',const=True,default=False,
+                dest='usb',help='Show connected USB devices')
 p=cmds.add_parser("version",help="show vws version")
 # Power management
-p=new_command(cmds,'start',help='Start VM and connect to console')
+p=new_command(cmds,'start',help='Start VW and connect to console',
+    description="Start VW if not running and connect to the console")
 p.add_argument('--no-gui',dest='gui',action='store_const',const=False,
                default=True,help='do not open console window')
-p.add_argument('--cdrom',dest='cdrom',nargs=1,
+p.add_argument('--cdrom',metavar='filename.iso',dest='cdrom',nargs=1,
                help='connect specified iso image to VMs cdrom on start')
 # Following commands don't need extra args
-new_command(cmds,'stop',help='Shut down virtual machine')
-new_command(cmds,'save',help='Save VM state and stop emulation')
-new_command(cmds,'reset',help='Reboot a guest OS')
+p=new_command(cmds,'stop',help='Shut down virtual machine',
+         description="Terminate the VW, gracefully or ungracefully")
+p.add_argument('--hard',help='Power off immediately', action='store_const',dest='hard',const=True,default=False)
+
+new_command(cmds,'save',help='Save VW state and stop emulation',
+    description="Save VW state and stop emulation")
+new_command(cmds,'reset',help='Reboot a guest OS',
+    description="Reboot othe guuest OS")
 # Removable devices management
-p=new_command(cmds,'cdrom',help='manage CDROM Drive')
+p=new_command(cmds,'cdrom',help='manage CDROM Drive',
+    description='"insert" an ISO image into emulated CD-ROM or eject it')
 p.add_argument('--id',type=str,default=None,
                help='Identifier of CDROM drive if VM has more than one')
 p.add_argument('file',nargs="?",default='',help='ISO image or special file to connect to drive')
 p.add_argument('--eject',dest='file',action='store_const',const=None)
-usb=cmds.add_parser('usb').add_subparsers(dest='subcommand',help='manage USB devices')
+usb=cmds.add_parser('usb',help='manage USB devices').add_subparsers(dest='subcommand',help='manage USB devices')
 p=new_command(usb,'insert',help='attach device to the virtual machine')
 p.add_argument('pattern',help='Pattern of device name to look up in lsusb')
 p.add_argument('--address',type=str,dest='address',nargs=1,help='exact address bus:device')
@@ -339,17 +356,17 @@ new_command(cmds,'stoprecord',help='stop recording audio')
 # Create new VM
 p=new_command(cmds,'create',help="Create new VM")
 p.add_argument("--no-usb",help="Disable USB controller",action='store_const', const = False, default=True, dest="usb")
-p.add_argument("--size",help="Size of primary disk images",dest="size",default="20G");
-p.add_argument("--arch",help="Emulated architecture",dest="arch",default='x86_64');
+p.add_argument("--size",metavar='size',help="Size of primary disk images",dest="size",default="20G");
+p.add_argument("--arch",metavar='cputype',help="Emulated architecture",dest="arch",default='x86_64');
 p.add_argument("--no-sound",help="Disable sound card",action='store_const',const = None,default='hda',  dest="sound")
-p.add_argument("--sound",help="Specify sound card type",dest='sound',default='hda')
-p.add_argument("--vga",help="specify video card type (cirrus,std,vmwae,qxl) default qxl",dest="vga",default="qxl")
+p.add_argument("--sound",metavar='cardtype',help="Specify sound card type",dest='sound',default='hda')
+p.add_argument("--vga",metavar='cardtype',help="specify video card type (cirrus,std,vmwae,qxl) default qxl",dest="vga",default="qxl")
 p.add_argument("--net",help="Network - 'user' or bridge name",dest='net',default="user")
-p.add_argument("--mem",help="Size of memory",dest="mem",default="1024M")
-p.add_argument("--diskif",help="Disk interface",dest="diskif",default="virtio")
+p.add_argument("--mem",metavar='size',help="Size of memory",dest="mem",default="1024M")
+p.add_argument("--diskif",metavar='interface-type',help="Disk interface (virtio, scsi, ide)",choices=['virtio','scsi','ide'],dest="diskif",default="virtio")
 p.add_argument('--shared',help='Create shared VM instead of private one',action='store_const',const= True,dest='shared',default=False)
-p.add_argument('--image',help='Existing disk image to import',dest='image',default=None)
-p.add_argument('--install',help='ISO image to install OS from',dest='install',default=None)
+p.add_argument('--image',metavar='filename',help='Existing disk image to import',dest='image',default=None)
+p.add_argument('--install',metavar='filename.iso',help='ISO image to install OS from',dest='install',default=None)
 # Miscellenia
 p=new_command(cmds,'monitor',help='connect stdin/stdout to monitor of VM')
 p=new_command(cmds,'spiceuri',help='Output spice URI of machine')
