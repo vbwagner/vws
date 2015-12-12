@@ -180,6 +180,7 @@ def cmd_usb_attached(options):
     for t in get_host_devices(options.sock):
         print "Address %s : %s"%(t[0],t[1])
     print answer
+
 def cmd_list(options):
     count = 0
     search_path=[os.environ['HOME']+"/VWs",
@@ -212,12 +213,72 @@ def cmd_list(options):
                 print f[0]
     if not count:
         sys.exit(1)
+
+def cmd_screenshot(options):
+    from os.path import abspath
+    filename = abspath(options.filename)
+    print send_command(options.sock,"screendump "+filename)
+
+def cmd_record(options):
+    from os.path import abspath
+    filename = abspath(options.filename)
+    print send_command(options.sock,"wavcapture "+filename)
+
+def cmd_stoprecord(options):
+    answer = send_command(options.sock,"info capture")
+    m=re.search('\[(\d+)\]: ',answer)
+    if not m:
+        print >>sys.stderr,"No sound recording in progress"
+    else:
+        print send_command(options.sock,"stopcapture "+m.group(1))
 def cmd_version(options):
     print VERSION
 
 def validate_size(size):
     return re.match('\d+[KMG]',size) is not None
+
+template="""#!/bin/sh
+# Get machine name from current directory name
+NAME=$(basename $(pwd))
+# if remote access is enabled, then there should be
+# SPICE_PASSWORD=password
+QEMU_AUDIO_DRV=spice
+export QEMU_AUDIO_DRV
+if [ -n "$SPICE_PASSWORD" ]; then
+   SPICE_AUTH="password=$SPICE_PASSWORD"
+else
+   SPICE_AUTH="disable-ticketing,addr=127.0.0.1"
+fi
+SPICE_PORT=$(find_free_port 5900)
+if [ "$1" = '-cdrom' ]; then
+	shift
+	CDROM=",file=$1"
+	shift
+fi
+
+{qemubinary} -name $NAME {accel} \\
+-m {memory} \\
+{drive} \\
+{cdrom}$CDROM \\
+{net} \\
+{usb} \\
+{sound} \\
+-chardev socket,server,nowait,path=monitor,id=monitor \\
+-mon chardev=monitor,mode=readline \\
+-vga {vga} \\
+-spice port=$SPICE_PORT,$SPICE_AUTH \\
+-device virtio-serial -chardev spicevmc,id=vdagent,name=vdagent \\
+-device virtserialport,chardev=vdagent,name=com.redhat.spice.0 \\
+-device ich9-usb-ehci1,id=usb \\
+-device ich9-usb-uhci1,masterbus=usb.0,firstport=0,multifunction=on \\
+-chardev spicevmc,name=usbredir,id=usbredirchardev1 \\
+-device usb-redir,chardev=usbredirchardev1,id=usbredirdev1 \\
+-daemonize -pidfile pid
+"""
+
 def cmd_create(parsed_args):
+    import os.path
+    global template
     if not parsed_args.image and not validate_size(parsed_args.size):
         print >>sys.stderr,"Invalid size of disk specifed %s. Should have K, M or G suffix"%parsed_args.size
         sys.exit(1)
@@ -272,7 +333,12 @@ def cmd_create(parsed_args):
 
     options["memory"]=parsed_args.mem
 
-
+    if os.path.exists(machinedir):
+        if os.path.exists(machinedir+"/start"):
+            print >> sys.stderr,"Virtual Worstation %s already exists"%parsed_args.name
+        else:
+            print >> sys.stderr,"Cannot create VW directory, something on the way"
+        sys.exit(1)
     #  Creating directory for VM
     os.makedirs(machinedir,dirmode)
     driveopts={"interface":parsed_args.diskif,"image":drivename}
@@ -290,8 +356,6 @@ def cmd_create(parsed_args):
     if parsed_args.debug:
         print repr(driveopts),repr(options["drive"])
         print repr(options)
-    with open(libdir+"/start.template","r") as f:
-        template=f.read()
     with open("start","w") as script:
         script.write(template.format(**options))
 
@@ -321,7 +385,7 @@ def new_command(cmds,name,**kwargs):
 
 
 
-config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',  
+config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',
     'AutoStartVMs':'/var/cache/vws/autostart'})
 config.add_section('directories')
 config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
@@ -370,12 +434,14 @@ p=new_command(usb,'attached',help='list devices attached to vm')
 usb.add_parser('list',help='list devices available in the host system')
 # Snapshot management
 p=new_command(cmds,'snapshot',help='Create new snapshot')
-p=new_command(cmds,'revert',help='Revert to last snapshot')
+p.add_argument('snapname',help='snapshot name')
+p=new_command(cmds,'revert',help='Revert to snapshot')
+p.add_argument('snapname',help='name of snapshot to revert to')
 p=new_command(cmds,'commit',help='Commit snapshot changes into backing file')
 p=new_command(cmds,'snapshots',help='List existing snapshots')
 # Screenshoits and recording
-p=new_command(cmds,'screenshoot',help='take a screenshot')
-p.add_argument('filename',help='image filename to write screenshot to')
+p=new_command(cmds,'screenshot',help='take a screenshot')
+p.add_argument('filename',help='PPM image filename to write screenshot to')
 p=new_command(cmds,'record',help='Record audio output from VM')
 p.add_argument('filename',help='wav file to record autdio to')
 new_command(cmds,'stoprecord',help='stop recording audio')
@@ -426,3 +492,6 @@ except KeyError:
     print >>sys.stderr,"Operation %s is not implemented"%funcname
     sys.exit(3)
 func(parsed_args)
+if hasattr(parsed_args,'sock') and parsed_args.sock is not None:
+    parsed_args.sock.close()
+
