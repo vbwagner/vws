@@ -6,7 +6,7 @@ import socket,select
 import errno
 import re
 import os,sys,time
-VERSION=0.1
+VERSION=0.2
 def find_vm(name):
     search_path=[os.environ['HOME']+"/VWs",
         config.get("directories","SharedVMs"),
@@ -259,6 +259,7 @@ def get_drives(vm_dir):
     return result
 
 def cmd_snapshot(options):
+    import os.path
     if not options.stopped:
         print >>sys.stderr,"Cannot make snapshot of running VW"
         return 1
