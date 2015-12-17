@@ -187,9 +187,8 @@ def cmd_usb_remove(options):
     print answer
     
 def cmd_usb_attached(options):
-    for t in get_host_devices(options.sock):
+    for t in get_vm_devices(options.sock):
         print "Address %s : %s"%(t[0],t[1])
-    print answer
 
 def cmd_list(options):
     count = 0
@@ -608,5 +607,6 @@ except KeyError:
     sys.exit(3)
 func(parsed_args)
 if hasattr(parsed_args,'sock') and parsed_args.sock is not None:
+    parsed_args.sock.shutdown(socket.SHUT_RDWR)
     parsed_args.sock.close()
 
