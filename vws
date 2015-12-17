@@ -80,12 +80,22 @@ def cmd_start(options):
         arg=""
         if options.cdrom:
             arg=" -cdrom "+options.cdrom[0]
+        if options.snapshot:
+            arg=arg+" -snapshot"
+        if options.args:
+            arg=arg+" "+options.args
         cwd=os.getcwd()
         os.chdir(options.dir)
         os.system("./start%s" % arg)
         os.chdir(cwd)
         time.sleep(2)
         options.sock = connect_vm(options.dir)
+    else:
+        if options.snapshot or options.args:
+            print >>sys.stderr, "Cannot change qemu options. VM is already running"
+        if options.cdrom:
+            options.file = options.cdrom[0]
+            cmd_cdrom(options)    
     if options.gui:
         uri = spiceurl(options)
         os.system("remote-viewer %s &" % uri)
@@ -236,6 +246,107 @@ def cmd_version(options):
 
 def validate_size(size):
     return re.match('\d+[KMG]',size) is not None
+
+def get_drives(vm_dir):
+    """ Return list of drive files in the VW directory """
+    result=[]
+    with open(vm_dir+"/start") as f:
+        for line in f:
+            if (re.match("\s*-drive .*",line) and
+                line.find("media=disk")>-1):
+                m=re.search("file=([^,\s]*)",line)
+                if m:
+                    result.append(m.group(1))
+    return result
+
+def cmd_snapshot(options):
+    if not options.stopped:
+        print >>sys.stderr,"Cannot make snapshot of running VW"
+        return 1
+    drives=get_drives(options.dir)
+    os.chdir(options.dir)
+    newnames={}
+    for i in drives:
+        name,ext=os.path.splitext(i)
+        newnames[i]=name+"."+options.snapname+"."+ext
+        if os.path.exists(newnames[i]):
+            print >>sys.stderr,"Snapshot %s already exists",options.snapname
+            return 1
+    for i in drives:
+        os.rename(i,newnames[i])
+        os.system("qemu-img create -f qcow2 -b \"%s\" \"%s\"" %(i,newnames[i]))
+    return 0
+
+def cmd_snapshots(options): 
+    os.chdir(options.dir)
+    drives = get_drives(options.dir)
+    lst=[]
+    info={}
+    with os.popen("qemu-img info --backing-chain "+drives[0],"r") as f:
+        for line in f:
+           if line.find(": ")!= -1 :
+               var,val=line.strip().split(": ")
+               if val != "":
+                    info[var]=val
+           elif line[0]=='\n':
+               lst.append(info)
+               info = {}
+        lst.append(info)
+    for d in lst:
+        print "%-30s  %+8s  %+8s"%(d["image"],d["virtual size"],d["disk size"])
+
+
+def get_backing(drive):
+    with os.popen('qemu-img info "%s"' % drive,"r") as f:
+        for line in f:
+            m=re.match("backing.file: (.*)$",line)
+            if (m) :
+                return m.group(1)
+    return None                
+
+def cmd_revert(options):
+    # Removes latest snapshot images and creates new ones instead
+    if not options.stopped:
+        print >>sys.stderr,"Cannot revert running VW to snapshot"
+        return 1
+    os.chdir(options.dir)
+    for drive in get_drives(options.dir):
+        # Check if first  has backing file
+        backing=get_backing(drive)
+        if not backing:
+            print >>sys.stderr,"Drive %s has no snapshots"%drive
+            continue
+        # Unlink current image
+        os.unlink(drive)
+        # create new image with same backing file
+        os.system('qemu-img create -f qcow2 -b "%s" "%s"'%(backing,drive))
+
+def cmd_commit(options):   
+    #
+    # Commits last snapshot changes into it's backing file
+    #
+    if options.stopped:
+       #
+       # Stoppend vm - last snapshot is commited into its backing file.
+       # Backing file is made current drive image
+       #
+       os.chdir(options.dir)
+       for drive in get_drives(options.dir):
+            backing=get_backing(drive)
+            if backing is None:
+                continue
+            os.system('qemu-img commit "%s"'%drive)
+            os.unlink(drive)
+            os.rename(backing,drive)
+    else:
+       #
+       #
+       # Check if we are running in the snapshot mode
+       # 
+       send_command(options.sock,"commit")
+
+    
+
 
 template="""#!/bin/sh
 # Get machine name from current directory name
@@ -407,6 +518,10 @@ p.add_argument('--no-gui',dest='gui',action='store_const',const=False,
                default=True,help='do not open console window')
 p.add_argument('--cdrom',metavar='filename.iso',dest='cdrom',nargs=1,
                help='connect specified iso image to VMs cdrom on start')
+p.add_argument('--args',metavar='string',dest='args',nargs=1,default="",
+                help="Specify extra QEMU options")
+p.add_argument("--snapshot",action='store_const',const=True,default=False,
+                help="Run without modifying disk image")
 # Following commands don't need extra args
 p=new_command(cmds,'stop',help='Shut down virtual machine',
          description="Terminate the VW, gracefully or ungracefully")
