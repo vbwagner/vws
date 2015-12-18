@@ -67,6 +67,24 @@ def spiceurl(options):
         return None
     return "spice://"+url.rstrip('\r')      
 
+
+
+def list_bridges():
+    lst=[]
+	with os.popen("/sbin/brctl show", "r") as f:
+		for line in f:
+			n = line.find('\t');
+			if n <= 0:
+				continue
+			name = line[:n]
+			if name == "bridge name":
+				continue
+			lst.append(name)
+	return lst
+
+
+print repr(list_bridges())
+
 #
 # command implementation
 #
