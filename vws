@@ -349,24 +349,35 @@ def cmd_commit(options):
     # Commits last snapshot changes into it's backing file
     #
     if options.stopped:
-       #
-       # Stoppend vm - last snapshot is commited into its backing file.
-       # Backing file is made current drive image
-       #
-       os.chdir(options.dir)
-       for drive in get_drives(options.dir):
+        #
+        # Stoppend vm - last snapshot is commited into its backing file.
+        # Backing file is made current drive image
+        #
+        os.chdir(options.dir)
+        found=0
+        for drive in get_drives(options.dir):
             backing=get_backing(drive)
             if backing is None:
                 continue
+            found=1
             os.system('qemu-img commit "%s"'%drive)
             os.unlink(drive)
             os.rename(backing,drive)
+        if not found:
+            print >>sys.stderr,"No snapshots exist for this VM"
+            sys.exit(1)
+        
     else:
-       #
-       #
-       # Check if we are running in the snapshot mode
-       # 
-       send_command(options.sock,"commit")
+        #
+        #
+        # Check if we are running in the snapshot mode
+        # 
+        answer=send_command(options.sock,"info block")
+        if re.search(": /tmp",answer):
+            send_command(options.sock,"commit")
+        else:
+            print >>sys.stderr,"VM is not running in snapshot mode"
+            sys.exit(1)
 
     
 
@@ -514,7 +525,7 @@ def new_command(cmds,name,**kwargs):
     p.add_argument('machine',type=str,help='name of vm to operate on')
     return p
 #
-# arg parsing
+# prepare defaults for config
 #
 
 arch=os.uname()[4]
@@ -522,6 +533,8 @@ if re.match("i[3-9]86",arch):
     arch="i386"
 elif arch.startswith("arm"):
     arch="arm"
+
+
 config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',
     'AutoStartVMs':'/var/cache/vws/autostart'})
 config.add_section('directories')
@@ -534,8 +547,9 @@ config.add_section('tools')
 config.set('tools','viewer','remote-viewer %s')
 config.set('tools','bridge_list','/sbin/brctl show')
 config.set('tools','lsusb','lsusb')
+# Read configration files
 config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
-print config
+# Parse argument
 args=ArgumentParser(description="Manage Virtual Workstations")
 cmds=args.add_subparsers(dest='command',help="sub-command help")
 p=cmds.add_parser("list",help="List existing VWs",description="List existing VWs")
