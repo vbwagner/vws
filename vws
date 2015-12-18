@@ -71,19 +71,18 @@ def spiceurl(options):
 
 def list_bridges():
     lst=[]
-	with os.popen("/sbin/brctl show", "r") as f:
-		for line in f:
-			n = line.find('\t');
-			if n <= 0:
-				continue
-			name = line[:n]
-			if name == "bridge name":
-				continue
-			lst.append(name)
-	return lst
+    with os.popen(config.get('tools','bridge_list'), "r") as f:
+        for line in f:
+            n = line.find('\t');
+            if n <= 0:
+                continue
+            name = line[:n]
+            if name == "bridge name":
+                continue
+            lst.append(name)
+    return lst
 
 
-print repr(list_bridges())
 
 #
 # command implementation
@@ -101,7 +100,8 @@ def cmd_start(options):
         if options.snapshot:
             arg=arg+" -snapshot"
         if options.args:
-            arg=arg+" "+options.args
+            arg=arg+" "+"".join(options.args)
+        print arg
         cwd=os.getcwd()
         os.chdir(options.dir)
         os.system("./start%s" % arg)
@@ -116,7 +116,7 @@ def cmd_start(options):
             cmd_cdrom(options)    
     if options.gui:
         uri = spiceurl(options)
-        os.system("remote-viewer %s &" % uri)
+        os.system((config.get('tools','viewer')+"&") % uri)
     elif not options.stopped:
         print >>sys.stderr,"VM already running"
 def cmd_stop(options):
@@ -177,11 +177,14 @@ def find_usb(options,devices):
     else:
         return options.address
 def get_host_devices():
-    f=os.popen("lsusb","r")
+    global config
+    f=os.popen(config.get('tools',"lsusb"),"r")
     l=[]
     for dev in f:
         m=re.match('Bus (\d+) Device (\d+): (.*)$',dev)
         if m:
+            if m.group(3).endswith("root hub"):
+                continue
             l.append((m.group(1)+"."+m.group(2),m.group(3)))
     f.close()
     return l
@@ -198,7 +201,8 @@ def cmd_usb_insert(options):
     answer=send_command(options.sock,"usb_add host:%s" % address)
     print answer
 def cmd_usb_list(options):
-    os.system("lsusb")
+    for addr,descr in get_host_devices():
+        print addr,": ",descr
 def cmd_usb_remove(options):
     address=find_usb(options,get_vm_devices(options.sock))
     answer=send_command(options.sock,"usb_del %s" % address)
@@ -256,6 +260,7 @@ def cmd_stoprecord(options):
     m=re.search('\[(\d+)\]: ',answer)
     if not m:
         print >>sys.stderr,"No sound recording in progress"
+        sys.exit(1)
     else:
         print send_command(options.sock,"stopcapture "+m.group(1))
 def cmd_version(options):
@@ -512,13 +517,25 @@ def new_command(cmds,name,**kwargs):
 # arg parsing
 #
 
-
-
+arch=os.uname()[4]
+if re.match("i[3-9]86",arch):
+    arch="i386"
+elif arch.startswith("arm"):
+    arch="arm"
 config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',
     'AutoStartVMs':'/var/cache/vws/autostart'})
 config.add_section('directories')
+config.add_section('create options')
+for option,value in [('net','user'),('size','20G'),('mem','1G'),
+        ('diskif','virtio'),('sound','hda'),('arch',arch),
+        ('vga','qxl')]:
+    config.set('create options',option,value)
+config.add_section('tools')
+config.set('tools','viewer','remote-viewer %s')
+config.set('tools','bridge_list','/sbin/brctl show')
+config.set('tools','lsusb','lsusb')
 config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
-
+print config
 args=ArgumentParser(description="Manage Virtual Workstations")
 cmds=args.add_subparsers(dest='command',help="sub-command help")
 p=cmds.add_parser("list",help="List existing VWs",description="List existing VWs")
@@ -581,17 +598,30 @@ new_command(cmds,'stoprecord',help='stop recording audio')
 # Create new VM
 p=new_command(cmds,'create',help="Create new VW")
 p.add_argument("--no-usb",help="Disable USB controller",action='store_const', const = False, default=True, dest="usb")
-p.add_argument("--size",metavar='size',help="Size of primary disk images",dest="size",default="20G");
-p.add_argument("--arch",metavar='cputype',help="Emulated architecture",dest="arch",default='x86_64');
-p.add_argument("--no-sound",help="Disable sound card",action='store_const',const = None,default='hda',  dest="sound")
-p.add_argument("--sound",metavar='cardtype',help="Specify sound card type",dest='sound',default='hda')
-p.add_argument("--vga",metavar='cardtype',help="specify video card type (cirrus,std,vmwae,qxl) default qxl",dest="vga",default="qxl")
-p.add_argument("--net",help="Network - 'user' or bridge name",dest='net',default="user")
-p.add_argument("--mem",metavar='size',help="Size of memory",dest="mem",default="1024M")
-p.add_argument("--diskif",metavar='interface-type',help="Disk interface (virtio, scsi, ide)",choices=['virtio','scsi','ide'],dest="diskif",default="virtio")
-p.add_argument('--shared',help='Create shared VW instead of private one',action='store_const',const= True,dest='shared',default=False)
-p.add_argument('--image',metavar='filename',help='Existing disk image to import',dest='image',default=None)
-p.add_argument('--install',metavar='filename.iso',help='ISO image to install OS from',dest='install',default=None)
+p.add_argument("--size",metavar='size',help="Size of primary disk images",
+    dest="size",default=config.get('create options','size'));
+p.add_argument("--arch",metavar='cputype',help="Emulated architecture",
+    dest="arch", default=config.get('create options','arch'));
+p.add_argument("--no-sound",help="Disable sound card", action='store_const',
+    const=None, default=config.get('create options', 'sound'), dest="sound")
+p.add_argument("--sound",metavar='cardtype',help="Specify sound card type",
+    dest='sound',default=config.get('create options','sound'))
+p.add_argument("--vga",metavar='cardtype',
+  help="specify video card type (cirrus,std,vmwae,qxl) default qxl",
+   dest="vga",default=config.get('create options','vga'))
+p.add_argument("--net",help="Network - 'user' or bridge name",
+   dest='net',default=config.get('create options','net'))
+p.add_argument("--mem",metavar='size',help="Size of memory",
+    dest="mem",default=config.get('create options','mem'))
+p.add_argument("--diskif",metavar='interface-type',
+    help="Disk interface (virtio, scsi, ide)",choices=['virtio','scsi','ide'],
+    dest="diskif",default=config.get('create options','diskif'))
+p.add_argument('--shared',help='Create shared VW instead of private one',
+    action='store_const',const= True,dest='shared',default=False)
+p.add_argument('--image',metavar='filename',help='Existing disk image to import',
+    dest='image',default=None)
+p.add_argument('--install',metavar='filename.iso',
+    help='ISO image to install OS from',dest='install',default=None)
 # Miscellenia
 p=new_command(cmds,'monitor',help='connect stdin/stdout to monitor of VM')
 p=new_command(cmds,'spiceuri',help='Output spice URI of machine')
