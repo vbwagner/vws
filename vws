@@ -262,7 +262,7 @@ def cmd_snapshot(options):
     import os.path
     if not options.stopped:
         print >>sys.stderr,"Cannot make snapshot of running VW"
-        return 1
+        sys.exit(1)
     drives=get_drives(options.dir)
     os.chdir(options.dir)
     newnames={}
@@ -308,7 +308,7 @@ def cmd_revert(options):
     # Removes latest snapshot images and creates new ones instead
     if not options.stopped:
         print >>sys.stderr,"Cannot revert running VW to snapshot"
-        return 1
+        sys.exit(1)
     os.chdir(options.dir)
     for drive in get_drives(options.dir):
         # Check if first  has backing file
@@ -501,7 +501,7 @@ config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',
 config.add_section('directories')
 config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
 
-args=ArgumentParser()
+args=ArgumentParser(description="Manage Virtual Workstations")
 cmds=args.add_subparsers(dest='command',help="sub-command help")
 p=cmds.add_parser("list",help="List existing VWs",description="List existing VWs")
 p.add_argument("--state",action='store_const',const=True,default=False,
@@ -561,7 +561,7 @@ p=new_command(cmds,'record',help='Record audio output from VM')
 p.add_argument('filename',help='wav file to record autdio to')
 new_command(cmds,'stoprecord',help='stop recording audio')
 # Create new VM
-p=new_command(cmds,'create',help="Create new VM")
+p=new_command(cmds,'create',help="Create new VW")
 p.add_argument("--no-usb",help="Disable USB controller",action='store_const', const = False, default=True, dest="usb")
 p.add_argument("--size",metavar='size',help="Size of primary disk images",dest="size",default="20G");
 p.add_argument("--arch",metavar='cputype',help="Emulated architecture",dest="arch",default='x86_64');
@@ -571,7 +571,7 @@ p.add_argument("--vga",metavar='cardtype',help="specify video card type (cirrus,
 p.add_argument("--net",help="Network - 'user' or bridge name",dest='net',default="user")
 p.add_argument("--mem",metavar='size',help="Size of memory",dest="mem",default="1024M")
 p.add_argument("--diskif",metavar='interface-type',help="Disk interface (virtio, scsi, ide)",choices=['virtio','scsi','ide'],dest="diskif",default="virtio")
-p.add_argument('--shared',help='Create shared VM instead of private one',action='store_const',const= True,dest='shared',default=False)
+p.add_argument('--shared',help='Create shared VW instead of private one',action='store_const',const= True,dest='shared',default=False)
 p.add_argument('--image',metavar='filename',help='Existing disk image to import',dest='image',default=None)
 p.add_argument('--install',metavar='filename.iso',help='ISO image to install OS from',dest='install',default=None)
 # Miscellenia
@@ -599,15 +599,17 @@ if hasattr(parsed_args,'machine'):
 
 funcname="cmd_"+parsed_args.command
 
-if hasattr(parsed_args,"subcommand"):
-    funcname+="_"+parsed_args.subcommand
 try:
-   func=globals()[funcname]
-except KeyError:
-    print >>sys.stderr,"Operation %s is not implemented"%funcname
-    sys.exit(3)
-func(parsed_args)
-if hasattr(parsed_args,'sock') and parsed_args.sock is not None:
-    parsed_args.sock.shutdown(socket.SHUT_RDWR)
-    parsed_args.sock.close()
+    if hasattr(parsed_args,"subcommand"):
+        funcname+="_"+parsed_args.subcommand
+    try:
+        func=globals()[funcname]
+    except KeyError:
+        print >>sys.stderr,"Operation %s is not implemented"%funcname
+        sys.exit(3)
+    func(parsed_args)
+finally:    
+    if hasattr(parsed_args,'sock') and parsed_args.sock is not None:
+        parsed_args.sock.shutdown(socket.SHUT_RDWR)
+        parsed_args.sock.close()
 

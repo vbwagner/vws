@@ -1,0 +1,168 @@
+NAME
+====
+
+*vws* - manage Virtual Workstations
+
+SYNOPSIS
+========
+
+**vws create** *name* [ **--install** *isoimage* ]
+
+**vws list**  [**--state**] [**--usb** ]
+
+**vws start** *name* [**--no-gui**] [**--cdrom** *iso-image*]
+
+**vws stop** *name* [**--hard**]
+
+**vws save** *name*
+
+**vws reset** *name*
+
+**vws cdrom** [ **--id** *id* ] [ *iso-image* | **--eject *]
+
+**vws usb attach** *name*  *pattern*
+
+**vws usb detach** *name*  *pattern*
+
+**vws usb attached** *name* 
+
+**vws usb list** 
+
+**vws snapshot** *name* [ *id* ]
+
+**vws revert** *name* [ *id* ]
+
+**vws commit** *name*
+
+**vws snapshots**  *name*
+
+**vws screenshot** *name* *filename.ppm*
+
+**vws record** *name* *filename.wav*
+
+**vws stoprecord**  *name*
+
+**vws monitor** *name*
+
+**vws spiceuri** *name*
+
+**vws version** 
+
+DESCRIPTION
+===========
+
+**vws** is thin scripting layer around **qemu-system**(1), which aims to
+simplify common tasks for some usage scenarios. Note that **qemu** command
+line is so complicated for good purpose, so any attempt to simplify it
+would make some functionality unavailable.
+
+**vws** is intended for software developers, who need to manually test
+software on various systems, read documentation on them and experiment.
+So, it is Virtual WorkStation system, not virtual servers or application
+container.
+
+It aims to allow user play with virtual machines directly, bypassing
+vws. User is allowed to alter **qemu** parameters directly in the
+**vws**-generated startup scripts and connect to monitor typing monitor
+commands by hand. Copying virtual workstation from one host to another
+is just a matter of transferring several files. 
+
+VW CREATION
+-----------
+
+**vws create** command creates basic layout of the virtual machine -
+virtual disk image and startup script and optionally starts installation
+process connecting specified ISO-image to virtual CD-ROM drive.
+
+It is also possible to create new machine with copy of existing virtual
+drive.
+
+Options of **create** commands allow to alter hardware configuration
+(memory and disk size, disk interface, sound hardware, video card
+disable sound and usb altogether).
+
+What is hardcoded into **vws** system is that
+
+1. Use unix domain socket in the same directory as startup script for
+monitor. vws script rely of the existence of this script.
+2. Use of **qcow2** image format. Without it, snapshots and saving VM
+state would not work
+3. Use spice as GUI protocol. It is only protocol which allows to share
+clipboard of quest with clipboard of host, and redirect USB devices via
+network.
+
+Shared or personal VWs
+----------------------
+
+**vws** support creation of personal and shared VWs. Personal VWs is
+created in the user home directory and accessible only for owner. Shared
+VWs are created in some system wide directory and accessible for the
+members of some group. By default it use **kvm** group, since only
+members of this group have read-write access use kernel virtualisation 
+module, and it greatly improves performance of qemu for compatible
+architectures.
+
+VWs networking
+--------------
+
+**qemu** support various ways to connect virtual machine to network.
+**vws** support only two of them - user mode network stack or bridged
+network. By default VW is created with user mode network stack, which
+basically means that it can establish outgoing TCP connections, but
+there is no way to connect to it from outside world. (There is ways to
+forward host ports to virtual machine in QEMU, but you'll have to hack
+startup script manually to use it in the **vws** created machine).
+
+Other way is bridged networking. I.e. each virtual machine would create
+tun interface which would be connected to some bridge.
+
+To use this mode, you have to perform following setup tasks
+
+1. Make qemu-bridge-helper utility setuid root. (it is designed to run
+setuid root, but Debian doesn't install it such way). It is required to
+allow qemu, started from non-root user to add interface to bridge.
+2. Create bridge interface to use. You can have several bridges and
+specify which one would be used on VW creation. Really, by manual
+editing of the startup script, you can add several network interfaces to
+VW and connect them to the different bridges.
+3. Setup you host system to forward packets from bridge network to
+outside internet. You can either use NAT, or include your ethernet
+interface into bridge.
+4. Make sure DHCP server is running in the bridge network. If your
+ethernet interface is part of the bridge, VWs would get their dynamic IP
+from your network router. If you use NAT, you'll need to run DHCP
+server, for instance **dnsmasq**(8) on your host and make it serve your bridge
+interface. You can live without DHCP on bridge, but it would be your
+problem to configure IP address on each VW manually. If you are planning
+to deploy many VWs with different operating systems, it is better to
+have DHCP running.
+
+
+STARTING AND STOPPING
+---------------------
+
+REMOVABLE DEVICE MANAGEMENT
+---------------------------
+
+SNAPSHOTS
+---------
+
+MISCELLANEA
+-----------
+
+**vws** allows to take virtual machine screenshot or record sound,
+produced by virtual machine. One don't need to have GUI window open to
+take screenshots.
+
+
+OPTIONS
+=======
+
+INTERNALS
+=========
+
+CONFIGURATION FILE
+------------------
+
+LAYOUT OF VIRTUAL MACHINES
+--------------------------
