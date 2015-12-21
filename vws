@@ -1,6 +1,6 @@
 #!/usr/bin/python
 from ConfigParser import ConfigParser
-from argparse import ArgumentParser
+from argparse import ArgumentParser,Namespace
 import fcntl
 import socket,select
 import errno
@@ -443,10 +443,10 @@ def cmd_create(parsed_args):
     macaddr=":".join(map(lambda x: "%02x"%ord(x),chr(0x52)+os.urandom(5)))
 
     if parsed_args.shared:
-        machinedir = config.get("directories","SharedVMs")+"/"+parsed_args.name
+        machinedir = config.get("directories","SharedVMs")+"/"+parsed_args.machine
         dirmode = 0755
     else:
-        machinedir = os.environ["HOME"]+"/VWs/"+parsed_args.name
+        machinedir = os.environ["HOME"]+"/VWs/"+parsed_args.machine
         dirmode = 0775
 
     if parsed_args.net != 'user':
@@ -454,11 +454,10 @@ def cmd_create(parsed_args):
         if not parsed_args.net in bridges:
             print >>sys.stderr,"No such bridge %s. Available ones %s"%(parsed_args.net,", ".join(bridges))
             sys.exit(1)
-        options["net"]="-net nic,macaddr=%s -net bridge,br=%s"%(macaddr,parsed_args.net),
+        options["net"]="-net nic,macaddr=%s -net bridge,br=%s"%(macaddr,parsed_args.net)
         
     else:
         options["net"]="-net nic,macaddr=%s -net user"%(macaddr,)
-
     options["qemubinary"] = 'qemu-system-'+parsed_args.arch
     options["vga"]=parsed_args.vga
     if not parsed_args.arch in ('i386','x86_64'):
@@ -480,7 +479,7 @@ def cmd_create(parsed_args):
 
     if os.path.exists(machinedir):
         if os.path.exists(machinedir+"/start"):
-            print >> sys.stderr,"Virtual Worstation %s already exists"%parsed_args.name
+            print >> sys.stderr,"Virtual Worstation %s already exists"%parsed_args.machine
         else:
             print >> sys.stderr,"Cannot create VW directory, something on the way"
         sys.exit(1)
@@ -498,7 +497,7 @@ def cmd_create(parsed_args):
         os.system("qemu-img create  -f qcow2 %s %s"%(drivename,parsed_args.size))
 
     options["drive"]=options["drive"].format(**driveopts) 
-    if parsed_args.debug:
+    if hasattr(parsed_args,"debug") and parsed_args.debug:
         print repr(driveopts),repr(options["drive"])
         print repr(options)
     with open("start","w") as script:
@@ -508,7 +507,11 @@ def cmd_create(parsed_args):
 
     # If installation media is specified vws start for new vm
     if parsed_args.install:
-        start_opts=Namespace(command='start',cdrom=parsed_args.install,stopped=True)
+        start_opts=Namespace(machine=parsed_args.machine,
+                            command='start', cdrom=[parsed_args.install],
+                            dir=machinedir, stopped=True, snapshot=False,
+                            args="", gui=True 
+                           )
         cmd_start(start_opts)
 
 
