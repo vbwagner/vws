@@ -512,7 +512,10 @@ def cmd_create(parsed_args):
                             dir=machinedir, stopped=True, snapshot=False,
                             args="", gui=True 
                            )
-        cmd_start(start_opts)
+        try:                   
+            cmd_start(start_opts)
+        finally:
+            start_opts.sock.shutdown(socket.SHUT_RDWR)
 
 
 
