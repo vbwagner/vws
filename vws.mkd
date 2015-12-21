@@ -67,6 +67,21 @@ vws. User is allowed to alter **qemu** parameters directly in the
 commands by hand. Copying virtual workstation from one host to another
 is just a matter of transferring several files. 
 
+It is designed to be friendly with traditional unix behavior. Virtual
+machines are started with normal user rights, there is no daemon running
+to control them. Instead, there is UNIX sockets in the file system,
+which allows to control machines.
+
+Spice protocol is used for GUI. It allows seamless desktop integration
+(i.e. mouse moving in and out VW window) and clipboard sharing.
+
+By default, our VWs are accessible from localhost only, but it is easy
+to set up password which lets to connect them via network.
+
+It is allowed to redirect USB devices either via SPICE (i.e. from the
+user workplace), or from host where VW is running. ISO images can be
+mounted as CDROMs only from host.
+
 VW CREATION
 -----------
 
@@ -141,11 +156,74 @@ have DHCP running.
 STARTING AND STOPPING
 ---------------------
 
+**vws start** \[ **--cdrom** _iso-image_\] \[**--snapshot**\] \[ --no-gui \] *vw-name*
+
+Starts virtual machine. Optionally, connects specified *iso-image* to
+its CD-ROM drive. If **--no-gui** is not specified, starts spice client
+(remote-viewer) to connect to this machine. If **--snapshot** is
+specified, starts machine in the snapshot mode, i.e. nothing is written
+into drive images. You need a lot of space in the */tmp* to run in
+snapshot mode.
+
+IF **--args** option is specfied, that its arguments are passed as
+additional arguments to **qemu**.
+
+If virtual machine is started already, and **--no-gui** is not
+specified, than just starts remote viewer. Mnemonic *make machine
+visible on your screen*. If **--cdrom** is specified, than it is
+equivalent of **vws cdrom** described below. Snapshot mode and qemu args
+cannot be changed on running machine.
+
+**vws stop** [ **--hard** ] *machine*
+
+Stops the virtual machine. If machine is running in the snapshot mode,
+than it is stopped unconditionally, because nothing can be destroyed on
+the disk images. Otherwise ACPI powerdown request is send to the guest
+OS unless **--hard** is specified. With **--hard** machine is always
+terminated immediately.
+
+**vws save** *machine*
+
+Saves virtual machine state into first disk image. Subsequent **start**
+command would restore this state.
+
+**vws reset** *machine*
+
+Requests the reboot of guest OS via ACPI.
+
+
 REMOVABLE DEVICE MANAGEMENT
 ---------------------------
 
+**vws cdrom** *machine* [ **--eject** | *iso-image* ]
+
+«Inserts» specified image into virtual machine's CD-ROM ejecting old one
+if any. If **--eject** is specified instead of image, current image is
+ejected.
+
+
+**vws usb list**
+
+Lists USB devices which can be attached to virtual machine.
+
+**vws usb attached** *machine*
+
+Lists USB devices which are currently attached
+
+**vws usb attach** *machine* [ *pattern* | **--address** *bus.device* ]
+
+Attach given devices to the virtual machine. *pattern* is some regexp
+which device description output by  **vws usb list** should match. Or,
+optionally you can specify exact address as bus number and device number
+on this bus.
+
+**vws usb detach** *machine* [ *pattern* | **--address** *bus.device* ]
+
+Detaches USB device.
+
 SNAPSHOTS
 ---------
+
 
 MISCELLANEA
 -----------
