@@ -291,13 +291,13 @@ def cmd_snapshot(options):
     newnames={}
     for i in drives:
         name,ext=os.path.splitext(i)
-        newnames[i]=name+"."+options.snapname+"."+ext
+        newnames[i]=name+"."+options.snapname+ext
         if os.path.exists(newnames[i]):
             print >>sys.stderr,"Snapshot %s already exists",options.snapname
             return 1
     for i in drives:
         os.rename(i,newnames[i])
-        os.system("qemu-img create -f qcow2 -b \"%s\" \"%s\"" %(i,newnames[i]))
+        os.system("qemu-img create -f qcow2 -b \"%s\" \"%s\"" %(newnames[i],i))
     return 0
 
 def cmd_snapshots(options): 
