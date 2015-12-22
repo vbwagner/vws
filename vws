@@ -97,6 +97,9 @@ def get_drives(vm_dir):
                     result.append(m.group(1))
     return result
 
+def snapshot_mode(sock):
+    answer=send_command(sock,"info block")
+    return re.search(": /tmp",answer) is not None:
 
 #
 # command implementation
@@ -151,7 +154,7 @@ def cmd_start(options):
     elif not options.stopped:
         print >>sys.stderr,"VM already running"
 def cmd_stop(options):
-    if options.hard:
+    if snapshot_mode(options.sock) or options.hard:
         print send_command(options.sock,'quit')
     else:
         print send_command(options.sock,'system_powerdown')
@@ -395,8 +398,7 @@ def cmd_commit(options):
         #
         # Check if we are running in the snapshot mode
         # 
-        answer=send_command(options.sock,"info block")
-        if re.search(": /tmp",answer):
+        if snapshot_mode(options.sock): 
             send_command(options.sock,"commit")
         else:
             print >>sys.stderr,"VM is not running in snapshot mode"

@@ -20,9 +20,9 @@ SYNOPSIS
 
 **vws cdrom** [ **--id** *id* ] [ *iso-image* | **--eject *]
 
-**vws usb attach** *name*  *pattern*
+**vws usb insert** *name*  *pattern*
 
-**vws usb detach** *name*  *pattern*
+**vws usb remove** *name*  *pattern*
 
 **vws usb attached** *name* 
 
@@ -152,6 +152,8 @@ problem to configure IP address on each VW manually. If you are planning
 to deploy many VWs with different operating systems, it is better to
 have DHCP running.
 
+USAGE
+=====
 
 STARTING AND STOPPING
 ---------------------
@@ -210,14 +212,14 @@ Lists USB devices which can be attached to virtual machine.
 
 Lists USB devices which are currently attached
 
-**vws usb attach** *machine* [ *pattern* | **--address** *bus.device* ]
+**vws usb insert** *machine* [ *pattern* | **--address** *bus.device* ]
 
 Attach given devices to the virtual machine. *pattern* is some regexp
 which device description output by  **vws usb list** should match. Or,
 optionally you can specify exact address as bus number and device number
 on this bus.
 
-**vws usb detach** *machine* [ *pattern* | **--address** *bus.device* ]
+**vws usb remove** *machine* [ *pattern* | **--address** *bus.device* ]
 
 Detaches USB device.
 
@@ -232,15 +234,120 @@ MISCELLANEA
 produced by virtual machine. One don't need to have GUI window open to
 take screenshots.
 
+**vws screenshot** *machine* *filename.ppm*
 
-OPTIONS
-=======
+Makes a screenshot.
 
-INTERNALS
-=========
+**vws record** *machine* *filename.wav*
+
+Start recording of machine sound output
+
+**vws stoprecord** *machine*
+
+Stop recording sound.
+
+**vws monitor** *machine*
+
+Attaches to the machine monitor and allows user to send monitor commands
+from the keyboard and see output. Uses lockin common to all **vws**
+command, so you can use other **vws** command in parallel with
+**monitor** command running.
+
+**vws spiceuri** *machine*
+
+Prints out URI you should feed into your spice viewer to access this
+machine.
+
 
 CONFIGURATION FILE
-------------------
+==================
+
+Configuration file for [vws], which uses standard .ini format.
+
+There are following sections
+
+    [directories]
+    [create options]
+    [tools]
+
+Directories section
+-------------------
+
+Contain two parameters: **SharedVMs** and **AutostartVMs**. Both are directories where system-wide virtual machines are stored. 
+
+Shared VMs are VMs which are accessible for all members of **kvm** group, but must be started or stopped manually.
+
+Autostart VMs are started automatically on boot of host. 
+
+If you are using more or less sensible disk layout, i.e. create separate partitions for /usr and /var, you probably want to tune this parameters, because you don't want to store your vms in the /var/cache. 
+
+It is recommended to have both these directories on the same partition, so moving VM from autostart to shared and vice versa would not involve physically copying of the files.
+
+**NB** *autostart is planned for version 0.3*
+
+Create options
+--------------
+
+
+This section list default values, used by **vws create** to create new virtual machines. 
+
+Following parameters can be used:
+
+* **net=user** or **net=**_inteface name_ - network type by default. Can be either **user** or name of existing brige interface. If you have [set up bridge, you'll probably want to specify name of bridge interface here.
+ 
+* **size=**_virtual disk size* - size of the disk image to create by default. 20G is probably big enough for most modern OS-es and small enough to fit on the modern disks. Note that we use **qcow2** format, so all disk space is not preallocated. You can use G or M suffixes to specify size.
+
+* **mem=**_memory size_ - default memory size. Also can have M or G suffix.
+
+* **diskif=**_interface_ where _interface_ can be **ide**, **scsi** or **virtio**. Disk interface. **virtio** offer best performance, but only if supported by quest operating system. **ide** offers best compatibilty. Windows vms must be created with ide, although it is possible to convert to virtio after installation.
+
+* **arch=**_architecture_ In most cases your choice is limited between **i386** and **x86_64**. Although you probably have qemu binaries for many other architectures, and it is theoretically possible to use them, they would be emulated without hardware acceleration and require some queer QEMU parameters, which are not supported by **vws** now.
+
+* **sound=**_list of sound cards)  specify which sound cards are emulated in the virtual machine. In most cases **hda** is all you need. But qemu supports long list of sound cards which can be found out by typing:
+
+        qemu-system-i386 -soundhw help
+
+    You can specify several of them, separated by comma.
+
+
+* **vga=**_type_ Type of emulated videoadapter **qxl** offers best performance with spice, but have mouse glitches with some old versions of X11. If you encounter such a problem, try to use some other type of videoadapter, listed on the manual page **qemu-system**(1).
+
+TOOLS SECTION
+-------------
+
+Following programs can be specified via this section:
+
+* **viewer=** Name of spice client to run. %s in the command line is replaced by spice URI. Default 
+
+        remote-viewer %s
+
+* **bridge_list=** command to run to list bridge interfaces. Default
+
+        brctl show
+
+* **lsusb=** command to run to list host USB devices. Default lsusb.
+
+
 
 LAYOUT OF VIRTUAL MACHINES
---------------------------
+==========================
+
+Even though virtual machines are completely independent, we need some conventions to simplify tools usage (to avoid specifying full path in the command line)
+
+So, we adopt following convention:
+
+1.  All files related to each machine are stored in the one directory, named after the machine. See virtual machine directory.
+2.  There are three types of virtual machine - shared, autostarted and user. 
+    shared and autostarted are stored in the some area, described in the global 
+    configuration file /etc/vws.conf, user stored in ${HOME}/VWs.
+
+Each virtual machine directory contains:
+
+1. startup script, named **start**
+2. monitor socket named **monitor**
+3. pid file **pid**
+4. One or more drive images. Each image can have several backing files (snapshots). All references to the drive images or to backing files within drive images use relative paths, so you can move directory around, and machine would still work.
+
+
+
+
