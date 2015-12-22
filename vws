@@ -99,7 +99,7 @@ def get_drives(vm_dir):
 
 def snapshot_mode(sock):
     answer=send_command(sock,"info block")
-    return re.search(": /tmp",answer) is not None:
+    return re.search(": /tmp",answer) is not None
 
 #
 # command implementation
