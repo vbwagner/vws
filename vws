@@ -82,6 +82,20 @@ def list_bridges():
             lst.append(name)
     return lst
 
+def validate_size(size):
+    return re.match('\d+[KMG]',size) is not None
+
+def get_drives(vm_dir):
+    """ Return list of drive files in the VW directory """
+    result=[]
+    with open(vm_dir+"/start") as f:
+        for line in f:
+            if (re.match("\s*-drive .*",line) and
+                line.find("media=disk")>-1):
+                m=re.search("file=([^,\s]*)",line)
+                if m:
+                    result.append(m.group(1))
+    return result
 
 
 #
@@ -104,10 +118,27 @@ def cmd_start(options):
         print arg
         cwd=os.getcwd()
         os.chdir(options.dir)
+        # Check for snapshot
+        next=0
+        snapshot_id=None
+        with os.popen("qemu-img info \"%s\"" % (get_drives(options.dir)[0]),"r") as f:
+            for line in f:
+                if line == 'Snapshot list:\n':
+                    next=2
+                elif next==2 and line.startswith('ID'):
+                    next=1
+                elif next==1:
+                    next=0
+                    snapshot_id = line[:line.index(' ')]
+                    arg=arg+" -loadvm " + snapshot_id
+                    break
+
         os.system("./start%s" % arg)
         os.chdir(cwd)
         time.sleep(2)
         options.sock = connect_vm(options.dir)
+        if snapshot_id:
+            send_command(options.sock,"delvm "+snapshot_id)
     else:
         if options.snapshot or options.args:
             print >>sys.stderr, "Cannot change qemu options. VM is already running"
@@ -144,7 +175,13 @@ def cmd_monitor(options):
 def cmd_reset(options):
     print send_command(options.sock,'system_reset')
 def cmd_save(options):
-    print send_command(options.sock,'savevm')
+    answer=send_command(options.sock,'savevm')
+    if re.search("Error",answer):
+        print >>sys.stderr,answer
+        sys.exit(1)
+    else:
+        send_command(options.sock,'quit')
+
 def cmd_cdrom(options):
     if options.id  is None:
         # Search for devices which could be interpreted as CDROM
@@ -266,20 +303,6 @@ def cmd_stoprecord(options):
 def cmd_version(options):
     print VERSION
 
-def validate_size(size):
-    return re.match('\d+[KMG]',size) is not None
-
-def get_drives(vm_dir):
-    """ Return list of drive files in the VW directory """
-    result=[]
-    with open(vm_dir+"/start") as f:
-        for line in f:
-            if (re.match("\s*-drive .*",line) and
-                line.find("media=disk")>-1):
-                m=re.search("file=([^,\s]*)",line)
-                if m:
-                    result.append(m.group(1))
-    return result
 
 def cmd_snapshot(options):
     import os.path
