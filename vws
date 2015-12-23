@@ -1,79 +1,85 @@
 #!/usr/bin/python
+""" vws - script to control QEMU/KVM virtual workstations """
 from ConfigParser import ConfigParser
-from argparse import ArgumentParser,Namespace
+from argparse import ArgumentParser, Namespace
 import fcntl
-import socket,select
+import socket, select
 import errno
 import re
-import os,sys,time
-VERSION=0.2
+import os, sys, time, os.path
+
+VERSION = 0.2
 def find_vm(name):
-    search_path=[os.environ['HOME']+"/VWs",
-        config.get("directories","SharedVMs"),
-        config.get("directories","AutostartVMs")]
+    """ Search and return VM directory """
+    search_path = [os.path.join(os.environ['HOME'], "VWs"),
+                   config.get("directories", "SharedVMs"),
+                   config.get("directories", "AutostartVMs")]
     for dirname in search_path:
-        if not os.access(dirname,os.X_OK):
+        if not os.access(dirname, os.X_OK):
             continue
-        if ( name in os.listdir(dirname) and
-             os.access(dirname+"/"+name+"/start",os.X_OK)):
-            return dirname+"/"+name
-    raise ValueError("Machine "+name+" not found.")
+        if (name in os.listdir(dirname) and
+                os.access(os.path.join(dirname, name, "start"), os.X_OK)):
+            return os.path.join(dirname, + name)
+    raise ValueError("Machine %s not found." % name)
 
 
 def connect_vm(vm_dir):
-    sock=socket.socket(socket.AF_UNIX)
-    if not os.access(vm_dir+"/monitor",os.W_OK):
+    """ Connects to monitor of VM in vm_dir and returns connected socket"""
+    sock = socket.socket(socket.AF_UNIX)
+    monitor_path = os.path.join(vm_dir, "monitor")
+    if not os.access(monitor_path, os.W_OK):
         return None
     try:
-        sock.connect(vm_dir+"/monitor")
+        sock.connect(monitor_path)
     except IOError as e:
         if e.errno == errno.ECONNREFUSED:
             # virtal machine is not running
             return None
         else:
             raise e
-    r,w,x=select.select([sock],[],[],0.001)
+    r, w, x = select.select([sock], [], [], 0.001)
     if sock in r:
-        greeting=sock.recv(1024)
+        greeting = sock.recv(1024)
     return sock
 
-def send_command(sock,command):
-    fcntl.flock(sock,fcntl.LOCK_EX)
+def send_command(sock, command):
+    """ Sends monitor command to given socket and returns answer """
+    fcntl.flock(sock, fcntl.LOCK_EX)
     try:
-        sock.send(command+"\n")
-        answer=""
+        sock.send(command + "\n")
+        answer = ""
         while not answer.endswith("(qemu) "):
-            chunk=sock.recv(1024)
-            #print "Got chunk = ",repr(chunk)
+            chunk = sock.recv(1024)
             if chunk == '':
                 raise IOError("Unexpected EOF From monitor")
-            answer+=chunk
+            answer += chunk
     finally:
-        fcntl.flock(sock,fcntl.LOCK_UN)
+        fcntl.flock(sock, fcntl.LOCK_UN)
     return answer
 
 def spiceurl(options):
-    output=send_command(options.sock,"info spice")
-    url=None
-    for    line in output.split("\n"):
+    """ Returns spice URI for given (as set of parsed args) VM """
+    output = send_command(options.sock, "info spice")
+    url = None
+    for line in output.split("\n"):
         if url is not None:
             continue
-        n=line.find("address:")
+        n = line.find("address:")
         if n != -1:
-            url=line[n+9:]
+            url = line[n+9:]
             if url.startswith('*:'):
-                url="localhost"+url[1:]
+                url = "localhost"+url[1:]
     if url is None:
         return None
-    return "spice://"+url.rstrip('\r')      
+    return "spice://" + url.rstrip('\r')
 
 
 
 def list_bridges():
-    lst=[]
-    with os.popen(config.get('tools','bridge_list'), "r") as f:
+    lst = []
+    with os.popen(config.get('tools', 'bridge_list'), "r") as f:
         for line in f:
-            n = line.find('\t');
+            n = line.find('\t')
             if n <= 0:
                 continue
             name = line[:n]
@@ -83,23 +89,24 @@ def list_bridges():
     return lst
 
 def validate_size(size):
-    return re.match('\d+[KMG]',size) is not None
+    return re.match('\\d+[KMG]', size) is not None
 
 def get_drives(vm_dir):
     """ Return list of drive files in the VW directory """
-    result=[]
-    with open(vm_dir+"/start") as f:
+    result = []
+    with open(vm_dir + "/start") as f:
         for line in f:
-            if (re.match("\s*-drive .*",line) and
-                line.find("media=disk")>-1):
-                m=re.search("file=([^,\s]*)",line)
+            if (re.match("\\s*-drive .*", line) and
+                    line.find("media=disk") > -1):
+                m = re.search("file=([^,\\s]*)", line)
                 if m:
                     result.append(m.group(1))
     return result
 
 def snapshot_mode(sock):
-    answer=send_command(sock,"info block")
-    return re.search(": /tmp",answer) is not None
+    """ Returns True if VM is running in snapshot mode """
+    answer = send_command(sock, "info block")
+    return re.search(": /tmp", answer) is not None
 
 #
 # command implementation
@@ -111,29 +118,30 @@ def cmd_spiceuri(options):
 
 def cmd_start(options):
     if options.stopped:
-        arg=""
+        arg = ""
         if options.cdrom:
-            arg=" -cdrom "+options.cdrom[0]
+            arg = " -cdrom " + options.cdrom[0]
         if options.snapshot:
-            arg=arg+" -snapshot"
+            arg = arg+" -snapshot"
         if options.args:
-            arg=arg+" "+"".join(options.args)
+            arg = arg + " " + "".join(options.args)
         print arg
-        cwd=os.getcwd()
+        cwd = os.getcwd()
         os.chdir(options.dir)
         # Check for snapshot
-        next=0
-        snapshot_id=None
-        with os.popen("qemu-img info \"%s\"" % (get_drives(options.dir)[0]),"r") as f:
+        nxt = 0
+        snapshot_id = None
+        with os.popen("qemu-img info \"%s\"" %
+                      (get_drives(options.dir)[0]), "r") as f:
             for line in f:
                 if line == 'Snapshot list:\n':
-                    next=2
-                elif next==2 and line.startswith('ID'):
-                    next=1
-                elif next==1:
-                    next=0
+                    nxt = 2
+                elif nxt == 2 and line.startswith('ID'):
+                    nxt = 1
+                elif nxt == 1:
+                    nxt = 0
                     snapshot_id = line[:line.index(' ')]
-                    arg=arg+" -loadvm " + snapshot_id
+                    arg = arg + " -loadvm " + snapshot_id
                     break
 
         os.system("./start%s" % arg)
@@ -141,145 +149,161 @@ def cmd_start(options):
         time.sleep(2)
         options.sock = connect_vm(options.dir)
         if snapshot_id:
-            send_command(options.sock,"delvm "+snapshot_id)
+            send_command(options.sock, "delvm " + snapshot_id)
     else:
         if options.snapshot or options.args:
-            print >>sys.stderr, "Cannot change qemu options. VM is already running"
+            print >>sys.stderr, ("Cannot change qemu options. " +
+                                 "VM is already running")
         if options.cdrom:
             options.file = options.cdrom[0]
-            cmd_cdrom(options)    
+            cmd_cdrom(options)
     if options.gui:
         uri = spiceurl(options)
-        os.system((config.get('tools','viewer')+"&") % uri)
+        os.system((config.get('tools', 'viewer') + "&") % uri)
     elif not options.stopped:
-        print >>sys.stderr,"VM already running"
+        print >>sys.stderr, "VM already running"
+
 def cmd_stop(options):
     if snapshot_mode(options.sock) or options.hard:
-        print send_command(options.sock,'quit')
+        print send_command(options.sock, 'quit')
     else:
-        print send_command(options.sock,'system_powerdown')
+        print send_command(options.sock, 'system_powerdown')
 def cmd_monitor(options):
     try:
         print "(qemu) ",
         sys.stdout.flush()
         while True:
-            r,w,x=select.select([sys.stdin,options.sock],[],[])
+            r, w, x = select.select([sys.stdin, options.sock], [], [])
             if sys.stdin in r:
-                cmd = sys.stdin.readline().rstrip()
-                answer=send_command(options.sock,cmd)
-                n=answer.index('\n')
+                cmd = sys.stdin.readline()
+                # Check for eof
+                if len(cmd) == 0:
+                    break
+                answer = send_command(options.sock, cmd.rstrip())
+                n = answer.index('\n')
                 print answer[n+1:],
                 sys.stdout.flush()
             elif options.sock in r:
-                print "UNSOLICITED MESSAGE %"+options.sock.readline().rstrip()
+                print "UNSOLICITED MESSAGE %" + options.sock.readline().rstrip()
     except KeyboardInterrupt:
         print "Keyboard interrupt"
         sys.exit()
+
 def cmd_reset(options):
-    print send_command(options.sock,'system_reset')
+    print send_command(options.sock, 'system_reset')
+
 def cmd_save(options):
-    answer=send_command(options.sock,'savevm')
-    if re.search("Error",answer):
-        print >>sys.stderr,answer
+    answer = send_command(options.sock, 'savevm')
+    if re.search("Error", answer):
+        print >>sys.stderr, answer
         sys.exit(1)
     else:
-        send_command(options.sock,'quit')
+        send_command(options.sock, 'quit')
 
 def cmd_cdrom(options):
     if options.id  is None:
         # Search for devices which could be interpreted as CDROM
-        devlist=send_command(options.sock,"info block")
-        for dev in  re.findall("([-\\w]+): [^\n]+\n    Removable device:",devlist):
-            if re.search("cd",dev):
-                options.id=dev
+        devlist = send_command(options.sock, "info block")
+        for dev in  re.findall("([-\\w]+): [^\n]+\n    Removable device:",
+                               devlist):
+            if re.search("cd", dev):
+                options.id = dev
                 break
     if options.id is None:
-        print >>sys.stderr, "No CDROM device found among:\n"+devlist;
+        print >>sys.stderr, "No CDROM device found among:\n" + devlist
         sys.exit(1)
     if options.file == "":
         print >>sys.stderr, "Please specify either --eject or iso image"
         sys.exit(1)
     if options.file is None:
-        answer=send_command(options.sock,"eject "+options.id)
+        answer = send_command(options.sock, "eject " + options.id)
     else:
-        answer=send_command(options.sock, "change %s %s" % (options.id, 
-                            options.file))
+        answer = send_command(options.sock, "change %s %s" %
+                              (options.id, options.file))
     print answer
-def find_usb(options,devices):
-    if hasattr("pattern",options):
-        for dev in devies:
-            if re.search(options.pattern,dev[1]):
-                options.address=dev[0]
+
+def find_usb(options, devices):
+    if hasattr("pattern", options):
+        for dev in devices:
+            if re.search(options.pattern, dev[1]):
+                options.address = dev[0]
                 break
-    elif not hasattr("address",options):
-        print >>sys.stderr,"Addess or search pattern for device is not specified"
+    elif not hasattr("address", options):
+        print >>sys.stderr, ("Address or search pattern for device " +
+                             "is not specified")
         sys.exit(1)
     else:
         return options.address
+
 def get_host_devices():
     global config
-    f=os.popen(config.get('tools',"lsusb"),"r")
-    l=[]
+    f = os.popen(config.get('tools', "lsusb"), "r")
+    l = []
     for dev in f:
-        m=re.match('Bus (\d+) Device (\d+): (.*)$',dev)
+        m = re.match('Bus (\\d+) Device (\\d+): (.*)$', dev)
         if m:
             if m.group(3).endswith("root hub"):
                 continue
-            l.append((m.group(1)+"."+m.group(2),m.group(3)))
+            l.append((m.group(1) + "." + m.group(2), m.group(3)))
     f.close()
     return l
+
 def get_vm_devices(sock):
-    answer=send_command(sock,"info usb")
-    l=[]
+    answer = send_command(sock, "info usb")
+    l = []
     for dev in answer.split("\n"):
-        m=re.match('Device (\d+\.\d), .*?, Product (.*)$',dev)
+        m = re.match('Device (\\d+\\.\\d+), .*?, Product (.*)$', dev)
         if m:
-            l.append((m.group(1),m.group(2)))
+            l.append((m.group(1), m.group(2)))
     return l
+
 def cmd_usb_insert(options):
-    address=find_usb(options,get_host_devices())
-    answer=send_command(options.sock,"usb_add host:%s" % address)
+    address = find_usb(options, get_host_devices())
+    answer = send_command(options.sock, "usb_add host:%s" % address)
     print answer
+
 def cmd_usb_list(options):
-    for addr,descr in get_host_devices():
-        print addr,": ",descr
-def cmd_usb_remove(options):
-    address=find_usb(options,get_vm_devices(options.sock))
-    answer=send_command(options.sock,"usb_del %s" % address)
-    print answer
-    
+    for addr, descr in get_host_devices():
+        print addr, ": ", descr
+
 def cmd_usb_attached(options):
     for t in get_vm_devices(options.sock):
-        print "Address %s : %s"%(t[0],t[1])
+        print "Address %s : %s" % (t[0], t[1])
+
+def cmd_usb_remove(options):
+    address = find_usb(options, get_vm_devices(options.sock))
+    answer = send_command(options.sock, "usb_del %s" % address)
+    print answer
 
 def cmd_list(options):
     count = 0
-    search_path=[os.environ['HOME']+"/VWs",
-        config.get("directories","SharedVMs"),
-        config.get("directories","AutostartVMs")]
+    search_path = [os.environ['HOME'] + "/VWs",
+                   config.get("directories", "SharedVMs"),
+                   config.get("directories", "AutostartVMs")]
     for dirname in search_path:
-        if not os.access(dirname+"/.",os.X_OK):
+        if not os.access(dirname + "/.", os.X_OK):
             continue
-        maxlen=0
-        vms=[]
+        maxlen = 0
+        vms = []
         for vmname in os.listdir(dirname):
-            if os.access(dirname+"/"+vmname+"/start",os.X_OK):
+            if os.access(dirname + "/" + vmname + "/start", os.X_OK):
                 count += 1
-                f=[vmname]
+                f = [vmname]
                 if maxlen < len(vmname):
                     maxlen = len(vmname)
                 if options.state:
-                    sock = connect_vm(dirname+"/"+vmname)
+                    sock = connect_vm(dirname + "/" + vmname)
                     if sock is None:
                         state = "stopped"
                     else:
+                        sock.shutdown(socket.SHUT_RDWR)
                         sock.close()
                         state = "running"
                     f.append(state)
                 vms.append(f)
         for f in sorted(vms):
-            if len(f)==2:
-                print "%*s %s" % (-maxlen,f[0],f[1])
+            if len(f) == 2:
+                print "%*s %s" % (-maxlen, f[0], f[1])
             else:
                 print f[0]
     if not count:
@@ -288,89 +312,90 @@ def cmd_list(options):
 def cmd_screenshot(options):
     from os.path import abspath
     filename = abspath(options.filename)
-    print send_command(options.sock,"screendump "+filename)
+    print send_command(options.sock, "screendump " + filename)
 
 def cmd_record(options):
     from os.path import abspath
     filename = abspath(options.filename)
-    print send_command(options.sock,"wavcapture "+filename)
+    print send_command(options.sock, "wavcapture " + filename)
 
 def cmd_stoprecord(options):
-    answer = send_command(options.sock,"info capture")
-    m=re.search('\[(\d+)\]: ',answer)
+    answer = send_command(options.sock, "info capture")
+    m = re.search('\\[(\\d+)\\]: ', answer)
     if not m:
-        print >>sys.stderr,"No sound recording in progress"
+        print >>sys.stderr, "No sound recording in progress"
         sys.exit(1)
     else:
-        print send_command(options.sock,"stopcapture "+m.group(1))
+        print send_command(options.sock, "stopcapture " + m.group(1))
 def cmd_version(options):
     print VERSION
 
 
 def cmd_snapshot(options):
-    import os.path
     if not options.stopped:
-        print >>sys.stderr,"Cannot make snapshot of running VW"
+        print >>sys.stderr, "Cannot make snapshot of running VW"
         sys.exit(1)
-    drives=get_drives(options.dir)
+    drives = get_drives(options.dir)
     os.chdir(options.dir)
-    newnames={}
+    newnames = {}
     for i in drives:
-        name,ext=os.path.splitext(i)
-        newnames[i]=name+"."+options.snapname+ext
+        name, ext = os.path.splitext(i)
+        newnames[i] = name + "." + options.snapname + ext
         if os.path.exists(newnames[i]):
-            print >>sys.stderr,"Snapshot %s already exists",options.snapname
+            print >>sys.stderr, "Snapshot %s already exists", options.snapname
             return 1
     for i in drives:
-        os.rename(i,newnames[i])
-        os.system("qemu-img create -f qcow2 -b \"%s\" \"%s\"" %(newnames[i],i))
+        os.rename(i, newnames[i])
+        os.system("qemu-img create -f qcow2 -b \"%s\" \"%s\"" %
+                  (newnames[i], i))
     return 0
 
-def cmd_snapshots(options): 
+def cmd_snapshots(options):
     os.chdir(options.dir)
     drives = get_drives(options.dir)
-    lst=[]
-    info={}
-    with os.popen("qemu-img info --backing-chain "+drives[0],"r") as f:
+    lst = []
+    info = {}
+    with os.popen("qemu-img info --backing-chain " + drives[0], "r") as f:
         for line in f:
-           if line.find(": ")!= -1 :
-               var,val=line.strip().split(": ")
-               if val != "":
-                    info[var]=val
-           elif line[0]=='\n':
-               lst.append(info)
-               info = {}
+            if line.find(": ") != -1:
+                var, val = line.strip().split(": ")
+                if val != "":
+                    info[var] = val
+            elif line[0] == '\n':
+                lst.append(info)
+                info = {}
         lst.append(info)
     for d in lst:
-        print "%-30s  %+8s  %+8s"%(d["image"],d["virtual size"],d["disk size"])
+        print "%-30s  %+8s  %+8s" % (d["image"], d["virtual size"],
+                                     d["disk size"])
 
 
 def get_backing(drive):
-    with os.popen('qemu-img info "%s"' % drive,"r") as f:
+    with os.popen('qemu-img info "%s"' % drive, "r") as f:
         for line in f:
-            m=re.match("backing.file: (.*)$",line)
-            if (m) :
+            m = re.match("backing.file: (.*)$", line)
+            if m:
                 return m.group(1)
-    return None                
+    return None
 
 def cmd_revert(options):
-    # Removes latest snapshot images and creates new ones instead
+    " Removes latest snapshot images and creates new ones instead "
     if not options.stopped:
-        print >>sys.stderr,"Cannot revert running VW to snapshot"
+        print >>sys.stderr, "Cannot revert running VW to snapshot"
         sys.exit(1)
     os.chdir(options.dir)
     for drive in get_drives(options.dir):
         # Check if first  has backing file
-        backing=get_backing(drive)
+        backing = get_backing(drive)
         if not backing:
-            print >>sys.stderr,"Drive %s has no snapshots"%drive
+            print >>sys.stderr, "Drive %s has no snapshots" % drive
             continue
         # Unlink current image
         os.unlink(drive)
         # create new image with same backing file
-        os.system('qemu-img create -f qcow2 -b "%s" "%s"'%(backing,drive))
+        os.system('qemu-img create -f qcow2 -b "%s" "%s"' % (backing, drive))
 
-def cmd_commit(options):   
+def cmd_commit(options):
     #
     # Commits last snapshot changes into it's backing file
     #
@@ -380,34 +405,26 @@ def cmd_commit(options):
         # Backing file is made current drive image
         #
         os.chdir(options.dir)
-        found=0
+        found = 0
         for drive in get_drives(options.dir):
-            backing=get_backing(drive)
+            backing = get_backing(drive)
             if backing is None:
                 continue
-            found=1
+            found = 1
             os.system('qemu-img commit "%s"'%drive)
             os.unlink(drive)
-            os.rename(backing,drive)
+            os.rename(backing, drive)
         if not found:
-            print >>sys.stderr,"No snapshots exist for this VM"
+            print >>sys.stderr, "No snapshots exist for this VM"
             sys.exit(1)
-        
     else:
-        #
-        #
-        # Check if we are running in the snapshot mode
-        # 
-        if snapshot_mode(options.sock): 
-            send_command(options.sock,"commit")
+        if snapshot_mode(options.sock):
+            send_command(options.sock, "commit")
         else:
-            print >>sys.stderr,"VM is not running in snapshot mode"
+            print >>sys.stderr, "VM is not running in snapshot mode"
             sys.exit(1)
 
-    
-
-
-template="""#!/bin/sh
+template = """#!/bin/sh
 # Get machine name from current directory name
 NAME=$(basename $(pwd))
 # if remote access is enabled, then there should be
@@ -447,262 +464,277 @@ fi
 """
 
 def cmd_create(parsed_args):
-    import os.path
+    BADSIZE = "Invalid size of %s specifed %s. Should have K, M or G suffix"
     global template
     if not parsed_args.image and not validate_size(parsed_args.size):
-        print >>sys.stderr,"Invalid size of disk specifed %s. Should have K, M or G suffix"%parsed_args.size
+        print >>sys.stderr, BADSIZE % ("disk", parsed_args.size)
         sys.exit(1)
-    if not validate_size(parsed_args.mem):    
-        print >>sys.stderr,"Invalid size of memory specifed %s. Should have K, M or G suffix"%parsed_args.size
+    if not validate_size(parsed_args.mem):
+        print >>sys.stderr, BADSIZE % ("memory", parsed_args.size)
         sys.exit(1)
-    libdir="/usr/local/lib/vws"
-    drivename="drive0.qcow2"
-    options={'qemubinary':'qemu-system-x86_64',
-    "accel":"-enable-kvm",
-    "memory":"1024M",
-    "vga":'qxl',
-    "drive":"-drive media=disk,index=0,if={interface},file={image}",
-    "cdrom":"-drive media=cdrom,index=2,if=ide",
-    "sound":"-soundhw hda",
-    "usb":"-usb"}
-    macaddr=":".join(map(lambda x: "%02x"%ord(x),chr(0x52)+os.urandom(5)))
-
+    drivename = "drive0.qcow2"
+    options = {'qemubinary':'qemu-system-x86_64',
+               "accel":"-enable-kvm",
+               "memory":"1024M",
+               "vga":'qxl',
+               "drive":"-drive media=disk,index=0,if={interface},file={image}",
+               "cdrom":"-drive media=cdrom,index=2,if=ide",
+               "sound":"-soundhw hda",
+               "usb":"-usb"}
+    macaddr = ":".join(map(lambda x: "%02x" % ord(x),
+                           chr(0x52) + os.urandom(5)))
     if parsed_args.shared:
-        machinedir = config.get("directories","SharedVMs")+"/"+parsed_args.machine
+        machinedir = os.path.join(config.get("directories", "SharedVMs"),
+                                  parsed_args.machine)
         dirmode = 0755
     else:
-        machinedir = os.environ["HOME"]+"/VWs/"+parsed_args.machine
+        machinedir = os.path.join(os.environ["HOME"], "VWs",
+                                  parsed_args.machine)
         dirmode = 0775
 
     if parsed_args.net != 'user':
         bridges = list_bridges()
         if not parsed_args.net in bridges:
-            print >>sys.stderr,"No such bridge %s. Available ones %s"%(parsed_args.net,", ".join(bridges))
+            print >>sys.stderr, ("No such bridge %s. Available ones %s" %
+                                 (parsed_args.net, ", ".join(bridges)))
             sys.exit(1)
-        options["net"]="-net nic,macaddr=%s -net bridge,br=%s"%(macaddr,parsed_args.net)
-        
+        options["net"] = ("-net nic,macaddr=%s -net bridge,br=%s" %
+                          (macaddr, parsed_args.net))
     else:
-        options["net"]="-net nic,macaddr=%s -net user"%(macaddr,)
+        options["net"] = "-net nic,macaddr=%s -net user" % (macaddr,)
     options["qemubinary"] = 'qemu-system-'+parsed_args.arch
-    options["vga"]=parsed_args.vga
-    if not parsed_args.arch in ('i386','x86_64'):
-        print >>sys.stderr,"KVM acceleration disabled due to target architecture"
+    options["vga"] = parsed_args.vga
+    NOACCEL = "KVM acceleration disabled due to "
+    if not parsed_args.arch in ('i386', 'x86_64'):
+        print >>sys.stderr, NOACCEL + "target architecture"
         options.accel = ''
-    elif not os.access("/dev/kvm",os.W_OK):
-        print >>sys.stderr,"KVM acceleration disabled due to unavailability on the host system"
+    elif not os.access("/dev/kvm", os.W_OK):
+        print >>sys.stderr, NOACCEL + "unavailability on the host system"
         options.accel = ''
 
     if not parsed_args.usb:
-        options["usb"]=''
+        options["usb"] = ''
 
     if not parsed_args.sound:
-        options["sound"]=''
+        options["sound"] = ''
     else:
-        options["sound"]='-soundhw '+parsed_args.sound
+        options["sound"] = '-soundhw ' + parsed_args.sound
 
-    options["memory"]=parsed_args.mem
+    options["memory"] = parsed_args.mem
 
     if os.path.exists(machinedir):
-        if os.path.exists(machinedir+"/start"):
-            print >> sys.stderr,"Virtual Worstation %s already exists"%parsed_args.machine
+        if os.path.exists(os.path.join(machinedir, "start")):
+            print >> sys.stderr, ("Virtual Worstation %s already exists" %
+                                  parsed_args.machine)
         else:
-            print >> sys.stderr,"Cannot create VW directory, something on the way"
+            print >> sys.stderr, ("Cannot create VW directory, " +
+                                  "something on the way")
         sys.exit(1)
     #  Creating directory for VM
-    os.makedirs(machinedir,dirmode)
-    driveopts={"interface":parsed_args.diskif,"image":drivename}
+    os.makedirs(machinedir, dirmode)
+    driveopts = {"interface":parsed_args.diskif, "image":drivename}
     if parsed_args.image:
         # Copying image file
-        print >>sys.stderr,"Copying %s to %s"%(parsed_args.image,machinedir+"/"+drivename) 
-        os.system("qemu-img convert -O qcow2 -p %s %s/%s"%(parsed_args.image,machinedir+"/"+drivename))
+        print >>sys.stderr, ("Copying %s to %s" %
+                             (parsed_args.image,
+                              os.path.join(machinedir, drivename)))
+        os.system("qemu-img convert -O qcow2 -p %s %s" %
+                  (parsed_args.image,
+                   os.path.join(machinedir, drivename)))
         os.chdir(machinedir)
     else:
-        print >>sys.stderr,"Creating new image file"
+        print >>sys.stderr, "Creating new image file of %s" % parsed_args.size
         os.chdir(machinedir)
-        os.system("qemu-img create  -f qcow2 %s %s"%(drivename,parsed_args.size))
+        os.system("qemu-img create -f qcow2 %s %s" %
+                  (drivename, parsed_args.size))
 
-    options["drive"]=options["drive"].format(**driveopts) 
-    if hasattr(parsed_args,"debug") and parsed_args.debug:
-        print repr(driveopts),repr(options["drive"])
+    options["drive"] = options["drive"].format(**driveopts)
+    if hasattr(parsed_args, "debug") and parsed_args.debug:
+        print repr(driveopts), repr(options["drive"])
         print repr(options)
-    with open("start","w") as script:
+    with open("start", "w") as script:
         script.write(template.format(**options))
-
-    os.chmod('start',0755)
-
+    os.chmod('start', dirmode)
     # If installation media is specified vws start for new vm
     if parsed_args.install:
-        start_opts=Namespace(machine=parsed_args.machine,
-                            command='start', cdrom=[parsed_args.install],
-                            dir=machinedir, stopped=True, snapshot=False,
-                            args="", gui=True 
-                           )
-        try:                   
+        start_opts = Namespace(machine=parsed_args.machine,
+                               command='start', cdrom=[parsed_args.install],
+                               dir=machinedir, stopped=True, snapshot=False,
+                               args="", gui=True)
+        try:
             cmd_start(start_opts)
         finally:
             start_opts.sock.shutdown(socket.SHUT_RDWR)
 
-
-
-
 #
 # Utility functions for arg parsing
 #
-def new_command(cmds,name,**kwargs):
+def new_command(cmds, name, **kwargs):
     """
     Adds a subparser and adds a machine name argument to it
     """
-    p=cmds.add_parser(name,**kwargs)
-    p.add_argument('machine',type=str,help='name of vm to operate on')
+    p = cmds.add_parser(name, **kwargs)
+    p.add_argument('machine', type=str, help='name of vm to operate on')
     return p
 #
 # prepare defaults for config
 #
 
-arch=os.uname()[4]
-if re.match("i[3-9]86",arch):
-    arch="i386"
+arch = os.uname()[4]
+if re.match("i[3-9]86", arch):
+    arch = "i386"
 elif arch.startswith("arm"):
-    arch="arm"
+    arch = "arm"
 
-
-config=ConfigParser({'SharedVMs':'/var/cache/vws/shared',
-    'AutoStartVMs':'/var/cache/vws/autostart'})
+config = ConfigParser({'SharedVMs':'/var/cache/vws/shared',
+                       'AutoStartVMs':'/var/cache/vws/autostart'})
 config.add_section('directories')
 config.add_section('create options')
-for option,value in [('net','user'),('size','20G'),('mem','1G'),
-        ('diskif','virtio'),('sound','hda'),('arch',arch),
-        ('vga','qxl')]:
-    config.set('create options',option,value)
+for option, value in [('net', 'user'), ('size', '20G'), ('mem', '1G'),
+                      ('diskif', 'virtio'), ('sound', 'hda'), ('arch', arch),
+                      ('vga', 'qxl')]:
+    config.set('create options', option, value)
 config.add_section('tools')
-config.set('tools','viewer','remote-viewer %s')
-config.set('tools','bridge_list','/sbin/brctl show')
-config.set('tools','lsusb','lsusb')
+config.set('tools', 'viewer', 'remote-viewer %s')
+config.set('tools', 'bridge_list', '/sbin/brctl show')
+config.set('tools', 'lsusb', 'lsusb')
 # Read configration files
-config.read(['/etc/vws.conf',os.environ['HOME']+'/.vwsrc'])
+config.read(['/etc/vws.conf', os.environ['HOME'] + '/.vwsrc'])
 # Parse argument
-args=ArgumentParser(description="Manage Virtual Workstations")
-cmds=args.add_subparsers(dest='command',help="sub-command help")
-p=cmds.add_parser("list",help="List existing VWs",description="List existing VWs")
-p.add_argument("--state",action='store_const',const=True,default=False,
-                dest='state',help='Show state of the machine')
-p.add_argument("--addr",action='store_const',const=True,default=False,
-                dest='addr',help='Show mac address and spice port')
-p.add_argument("--usb",action='store_const',const=True,default=False,
-                dest='usb',help='Show connected USB devices')
-p=cmds.add_parser("version",help="show vws version")
+args = ArgumentParser(description="Manage Virtual Workstations")
+cmds = args.add_subparsers(dest='command', help="sub-command help")
+p = cmds.add_parser("list", help="List existing VWs",
+                    description="List existing VWs")
+p.add_argument("--state", action='store_const', const=True, default=False,
+               dest='state', help='Show state of the machine')
+p.add_argument("--addr", action='store_const', const=True, default=False,
+               dest='addr', help='Show mac address and spice port')
+p.add_argument("--usb", action='store_const', const=True, default=False,
+               dest='usb', help='Show connected USB devices')
+p = cmds.add_parser("version", help="show vws version")
 # Power management
-p=new_command(cmds,'start',help='Start VW and connect to console',
-    description="Start VW if not running and connect to the console")
-p.add_argument('--no-gui',dest='gui',action='store_const',const=False,
-               default=True,help='do not open console window')
-p.add_argument('--cdrom',metavar='filename.iso',dest='cdrom',nargs=1,
+p = new_command(cmds, 'start', help='Start VW and connect to console',
+                description="Start VW if not running and connect " +
+                "to the console")
+p.add_argument('--no-gui', dest='gui', action='store_const', const=False,
+               default=True, help='do not open console window')
+p.add_argument('--cdrom', metavar='filename.iso', dest='cdrom', nargs=1,
                help='connect specified iso image to VMs cdrom on start')
-p.add_argument('--args',metavar='string',dest='args',nargs=1,default="",
-                help="Specify extra QEMU options")
-p.add_argument("--snapshot",action='store_const',const=True,default=False,
-                help="Run without modifying disk image")
-# Following commands don't need extra args
-p=new_command(cmds,'stop',help='Shut down virtual machine',
-         description="Terminate the VW, gracefully or ungracefully")
-p.add_argument('--hard',help='Power off immediately', action='store_const',dest='hard',const=True,default=False)
-
-new_command(cmds,'save',help='Save VW state and stop emulation',
-    description="Save VW state and stop emulation")
-new_command(cmds,'reset',help='Reboot a guest OS',
-    description="Reboot othe guuest OS")
+p.add_argument('--args', metavar='string', dest='args', nargs=1, default="",
+               help="Specify extra QEMU options")
+p.add_argument("--snapshot", action='store_const', const=True, default=False,
+               help="Run without modifying disk image")
+p = new_command(cmds, 'stop', help='Shut down virtual machine',
+                description="Terminate the VW, gracefully or ungracefully")
+p.add_argument('--hard', help='Power off immediately', action='store_const',
+               dest='hard', const=True, default=False)
+new_command(cmds, 'save', help='Save VW state and stop emulation',
+            description="Save VW state and stop emulation")
+new_command(cmds, 'reset', help='Reboot a guest OS',
+            description="Reboot othe guuest OS")
 # Removable devices management
-p=new_command(cmds,'cdrom',help='manage CDROM Drive',
-    description='"insert" an ISO image into emulated CD-ROM or eject it')
-p.add_argument('--id',type=str,default=None,
+p = new_command(cmds, 'cdrom', help='manage CDROM Drive',
+                description='"insert" an ISO image into emulated CD-ROM ' +
+                "or eject it")
+p.add_argument('--id', type=str, default=None,
                help='Identifier of CDROM drive if VM has more than one')
-p.add_argument('file',nargs="?",default='',help='ISO image or special file to connect to drive')
-p.add_argument('--eject',dest='file',action='store_const',const=None)
-usb=cmds.add_parser('usb',help='manage USB devices').add_subparsers(dest='subcommand',help='manage USB devices')
-p=new_command(usb,'insert',help='attach device to the virtual machine')
-p.add_argument('pattern',help='Pattern of device name to look up in lsusb')
-p.add_argument('--address',type=str,dest='address',nargs=1,help='exact address bus:device')
-p=new_command(usb,'remove',help='detach connected usb device')
-p.add_argument('pattern',help='Pattern of device name to look up in lsusb')
-p.add_argument('--address',type=str,dest='address',nargs=1,help='exact address bus:device')
-p=new_command(usb,'attached',help='list devices attached to vm')
-usb.add_parser('list',help='list devices available in the host system')
+p.add_argument('file', nargs="?", default='',
+               help='ISO image or special file to connect to drive')
+p.add_argument('--eject', dest='file', action='store_const', const=None)
+usb = cmds.add_parser('usb', help='manage USB devices'
+                     ).add_subparsers(dest='subcommand',
+                                      help='manage USB devices')
+p = new_command(usb, 'insert', help='attach device to the virtual machine')
+p.add_argument('pattern', help='Pattern of device name to look up in lsusb')
+p.add_argument('--address', type=str, dest='address', nargs=1,
+               help='exact address bus:device')
+p = new_command(usb, 'remove', help='detach connected usb device')
+p.add_argument('pattern', help='Pattern of device name to look up in lsusb')
+p.add_argument('--address', type=str, dest='address', nargs=1,
+               help='exact address bus:device')
+p = new_command(usb, 'attached', help='list devices attached to vm')
+usb.add_parser('list', help='list devices available in the host system')
 # Snapshot management
-p=new_command(cmds,'snapshot',help='Create new snapshot')
-p.add_argument('snapname',help='snapshot name')
-p=new_command(cmds,'revert',help='Revert to snapshot')
-p.add_argument('snapname',help='name of snapshot to revert to')
-p=new_command(cmds,'commit',help='Commit snapshot changes into backing file')
-p=new_command(cmds,'snapshots',help='List existing snapshots')
+p = new_command(cmds, 'snapshot', help='Create new snapshot')
+p.add_argument('snapname', help='snapshot name')
+p = new_command(cmds, 'revert', help='Revert to snapshot')
+p.add_argument('snapname', help='name of snapshot to revert to')
+p = new_command(cmds, 'commit',
+                help='Commit snapshot changes into backing file')
+p = new_command(cmds, 'snapshots', help='List existing snapshots')
 # Screenshoits and recording
-p=new_command(cmds,'screenshot',help='take a screenshot')
-p.add_argument('filename',help='PPM image filename to write screenshot to')
-p=new_command(cmds,'record',help='Record audio output from VM')
-p.add_argument('filename',help='wav file to record autdio to')
-new_command(cmds,'stoprecord',help='stop recording audio')
+p = new_command(cmds, 'screenshot', help='take a screenshot')
+p.add_argument('filename', help='PPM image filename to write screenshot to')
+p = new_command(cmds, 'record', help='Record audio output from VM')
+p.add_argument('filename', help='wav file to record autdio to')
+new_command(cmds, 'stoprecord', help='stop recording audio')
 # Create new VM
-p=new_command(cmds,'create',help="Create new VW")
-p.add_argument("--no-usb",help="Disable USB controller",action='store_const', const = False, default=True, dest="usb")
-p.add_argument("--size",metavar='size',help="Size of primary disk images",
-    dest="size",default=config.get('create options','size'));
-p.add_argument("--arch",metavar='cputype',help="Emulated architecture",
-    dest="arch", default=config.get('create options','arch'));
-p.add_argument("--no-sound",help="Disable sound card", action='store_const',
-    const=None, default=config.get('create options', 'sound'), dest="sound")
-p.add_argument("--sound",metavar='cardtype',help="Specify sound card type",
-    dest='sound',default=config.get('create options','sound'))
-p.add_argument("--vga",metavar='cardtype',
-  help="specify video card type (cirrus,std,vmwae,qxl) default qxl",
-   dest="vga",default=config.get('create options','vga'))
-p.add_argument("--net",help="Network - 'user' or bridge name",
-   dest='net',default=config.get('create options','net'))
-p.add_argument("--mem",metavar='size',help="Size of memory",
-    dest="mem",default=config.get('create options','mem'))
-p.add_argument("--diskif",metavar='interface-type',
-    help="Disk interface (virtio, scsi, ide)",choices=['virtio','scsi','ide'],
-    dest="diskif",default=config.get('create options','diskif'))
-p.add_argument('--shared',help='Create shared VW instead of private one',
-    action='store_const',const= True,dest='shared',default=False)
-p.add_argument('--image',metavar='filename',help='Existing disk image to import',
-    dest='image',default=None)
-p.add_argument('--install',metavar='filename.iso',
-    help='ISO image to install OS from',dest='install',default=None)
+p = new_command(cmds, 'create', help="Create new VW")
+p.add_argument("--no-usb", help="Disable USB controller", action='store_const',
+               const=False, default=True, dest="usb")
+p.add_argument("--size", metavar='size', help="Size of primary disk images",
+               dest="size", default=config.get('create options', 'size'))
+p.add_argument("--arch", metavar='cputype', help="Emulated architecture",
+               dest="arch", default=config.get('create options', 'arch'))
+p.add_argument("--no-sound", help="Disable sound card", action='store_const',
+               const=None, default=config.get('create options', 'sound'),
+               dest="sound")
+p.add_argument("--sound", metavar='cardtype', help="Specify sound card type",
+               dest='sound', default=config.get('create options', 'sound'))
+p.add_argument("--vga", metavar='cardtype',
+               help="specify video card type (cirrus,std,vmware,qxl) default " +
+               config.get('create options', 'vga',), dest="vga",
+               default=config.get('create options', 'vga'))
+p.add_argument("--net", help="Network - 'user' or bridge name",
+               dest='net', default=config.get('create options', 'net'))
+p.add_argument("--mem", metavar='size', help="Size of memory",
+               dest="mem", default=config.get('create options', 'mem'))
+p.add_argument("--diskif", metavar='interface-type',
+               help="Disk interface (virtio, scsi, ide)",
+               choices=['virtio', 'scsi', 'ide'],
+               dest="diskif", default=config.get('create options', 'diskif'))
+p.add_argument('--shared', help='Create shared VW instead of private one',
+               action='store_const', const=True, dest='shared', default=False)
+p.add_argument('--image', metavar='filename', dest='image', default=None,
+               help='Existing disk image to import')
+p.add_argument('--install', metavar='filename.iso', dest='install',
+               help='ISO image to install OS from', default=None)
 # Miscellenia
-p=new_command(cmds,'monitor',help='connect stdin/stdout to monitor of VM')
-p=new_command(cmds,'spiceuri',help='Output spice URI of machine')
+p = new_command(cmds, 'monitor', help='connect stdin/stdout to monitor of VM')
+p = new_command(cmds, 'spiceuri', help='Output spice URI of machine')
 
-parsed_args=args.parse_args(sys.argv[1:])
+parsed_args = args.parse_args(sys.argv[1:])
 
 # Create command is totally different, so it is handled separately
 if parsed_args.command == 'create':
     cmd_create(parsed_args)
     sys.exit(0)
 
+funcname = "cmd_" + parsed_args.command
+if hasattr(parsed_args, "subcommand"):
+    funcname += "_" + parsed_args.subcommand
+try:
+    func = globals()[funcname]
+except KeyError:
+    print >>sys.stderr, "Operation %s is not implemented" % funcname
+    sys.exit(3)
+
 parsed_args.stopped = False
-stopped_vm_commands = ['start','snapshot','revert','commit','snapshots']
-if hasattr(parsed_args,'machine'):
-    parsed_args.dir=find_vm(parsed_args.machine)
-    parsed_args.sock=connect_vm(parsed_args.dir)
-    if parsed_args.sock  is None:
+stopped_vm_commands = ['start', 'snapshot', 'revert', 'commit', 'snapshots']
+if hasattr(parsed_args, 'machine'):
+    parsed_args.dir = find_vm(parsed_args.machine)
+    parsed_args.sock = connect_vm(parsed_args.dir)
+    if parsed_args.sock is None:
         if not parsed_args.command in stopped_vm_commands:
-            print >>sys.stderr, "Virtual machine %s is not running."%parsed_args.machine
+            print >>sys.stderr, ("Virtual machine %s is not running." %
+                                 parsed_args.machine)
             sys.exit(1)
         else:
             parsed_args.stopped = True
-
-funcname="cmd_"+parsed_args.command
-
 try:
-    if hasattr(parsed_args,"subcommand"):
-        funcname+="_"+parsed_args.subcommand
-    try:
-        func=globals()[funcname]
-    except KeyError:
-        print >>sys.stderr,"Operation %s is not implemented"%funcname
-        sys.exit(3)
     func(parsed_args)
-finally:    
-    if hasattr(parsed_args,'sock') and parsed_args.sock is not None:
+finally:
+    if hasattr(parsed_args, 'sock') and parsed_args.sock is not None:
         parsed_args.sock.shutdown(socket.SHUT_RDWR)
         parsed_args.sock.close()
 
