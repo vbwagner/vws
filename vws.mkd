@@ -1,3 +1,7 @@
+% VWS(1)
+% Victor Wagner <vitus@wagner.pp.ru>
+% December 2015
+
 NAME
 ====
 
@@ -348,6 +352,14 @@ Each virtual machine directory contains:
 3. pid file **pid**
 4. One or more drive images. Each image can have several backing files (snapshots). All references to the drive images or to backing files within drive images use relative paths, so you can move directory around, and machine would still work.
 
+FILES
+=====
+
+**/etc/vws.conf**, _\${HOME}_**/.vwsrc**, _\${HOME}_**/VWs**
 
 
+SEE ALSO
+========
+
+**find\_free\_port**(1), **qemu-system**(1), **brctl**(8)
 

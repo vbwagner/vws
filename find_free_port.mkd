@@ -1,0 +1,29 @@
+% find_free_port(1)
+% Victor Wagner <vitus@wagner.pp.ru>
+% December 2015
+
+NAME
+====
+
+find\_free\_port - find unused port to bind to
+
+SYNOPSIS
+========
+
+**find\_free\_port** *start_port*
+
+DESCRIPTION
+===========
+
+**find\_free\_port** searches local system for unused TCP port where
+application program can listen for request. Starts with specified
+number.
+
+It is written as helper utility for **vws**(1) to search for unused port
+where virtual machine can listen for GUI clients.
+
+
+SEE ALSO
+========
+
+**netstat**(8), **vws**(1)
