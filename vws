@@ -21,7 +21,7 @@ def find_vm(name):
             continue
         if (name in os.listdir(dirname) and
                 os.access(os.path.join(dirname, name, "start"), os.X_OK)):
-            return os.path.join(dirname, + name)
+            return os.path.join(dirname,  name)
     raise ValueError("Machine %s not found." % name)
 
 
@@ -112,6 +112,7 @@ def snapshot_mode(sock):
     answer = send_command(sock, "info block")
     return re.search(": /tmp", answer) is not None
 
+
 #
 # command implementation
 #
@@ -126,7 +127,7 @@ def cmd_start(options):
     if options.stopped:
         arg = ""
         if options.cdrom:
-            arg = " -cdrom " + options.cdrom[0]
+            arg = " -cdrom " + os.path.abspath(options.cdrom[0])
         if options.snapshot:
             arg = arg+" -snapshot"
         if options.args:
@@ -232,7 +233,7 @@ def cmd_cdrom(options):
         answer = send_command(options.sock, "eject " + options.id)
     else:
         answer = send_command(options.sock, "change %s %s" %
-                              (options.id, options.file))
+                              (options.id, os.path.abspath(options.file)))
     print answer
 
 def find_usb(options, devices):
