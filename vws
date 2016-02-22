@@ -572,6 +572,9 @@ def cmd_create(parsed_args):
     #  Creating directory for VM
     os.makedirs(machinedir, dirmode)
     driveopts = {"interface":parsed_args.diskif, "image":drivename}
+    if parsed_args.install:
+        install_image = os.path.abspath(parsed_args.install)
+    
     if parsed_args.image:
         # Copying image file
         print >>sys.stderr, ("Copying %s to %s" %
@@ -598,7 +601,7 @@ def cmd_create(parsed_args):
     # If installation media is specified vws start for new vm
     if parsed_args.install:
         start_opts = Namespace(machine=parsed_args.machine,
-                               command='start', cdrom=[parsed_args.install],
+                               command='start', cdrom=[install_image],
                                dir=machinedir, stopped=True, snapshot=False,
                                args="", gui=True)
         try:
