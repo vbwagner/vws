@@ -163,6 +163,7 @@ def cmd_start(options):
                                  "VM is already running")
         if options.cdrom:
             options.file = options.cdrom[0]
+            options.id = None
             cmd_cdrom(options)
     if options.gui:
         uri = spiceurl(options)
@@ -356,6 +357,11 @@ def cmd_stoprecord(options):
         sys.exit(1)
     else:
         print send_command(options.sock, "stopcapture " + match.group(1))
+
+def cmd_sendkey(options):
+    """ vws sendkey """
+    print send_command(options.sock,"sendkey "+options.keyspec);
+    
 def cmd_version(dummy_options):
     """ vws cersion """
     print VERSION
@@ -712,6 +718,8 @@ p.add_argument('filename', help='PPM image filename to write screenshot to')
 p = new_command(cmds, 'record', help='Record audio output from VM')
 p.add_argument('filename', help='wav file to record autdio to')
 new_command(cmds, 'stoprecord', help='stop recording audio')
+p = new_command(cmds, 'sendkey', help='Send a keystroke to VM')
+p.add_argument('keyspec',help='key specification like ctrl-alt-delete');
 # Create new VM
 p = new_command(cmds, 'create', help="Create new VW")
 p.add_argument("--no-usb", help="Disable USB controller", action='store_const',

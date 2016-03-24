@@ -46,6 +46,8 @@ SYNOPSIS
 
 **vws stoprecord**  *name*
 
+**vws sendkey** *name* *keyspec*
+
 **vws monitor** *name*
 
 **vws spiceuri** *name*
@@ -262,6 +264,40 @@ command, so you can use other **vws** command in parallel with
 Prints out URI you should feed into your spice viewer to access this
 machine.
 
+
+**vws sendkey** *machine* *keyspec*
+
+Allows to send some key combination to the virtual machine. For example
+if windows screen is locked spice client is sometimes unable to deliver
+key stroke to the virtual machine in order to get it out of sleep. 
+
+In this case **vws sendkey** *machine* **ctrl-alt-delete** helps.
+
+One **vws sendkey** command sends only one key combination
+
+See **KEY SPECS** below about format of key specification.
+
+KEY SPECS
+=========
+
+Following key names are avalable:
+
+shift shift_r alti alt_r altgr altgr_r ctrl ctrl_r menu
+
+esc	1 2 3 4 5 6 7 8
+9 0 minus  equal backspace  tab
+q w e r t y u i o p ret 
+a s d f  g  h  j k l
+z  x  c  v b n m  comma  dot  slash
+asterisk  spc  caps_lock  f1  f2  f3 f4  f5  f6  f7  f8  f9
+f10  num_lock  scroll_lock  kp_divide  kp_multiply
+kp_subtract kp_add  kp_enter  kp_decimal  sysrq  kp_0  kp_1
+kp_2  kp_3  kp_4  kp_5  kp_6  kp_7 kp_8  kp_9  <  f11  f12  
+print home  pgup  pgdn  end  left  up
+down  right  insert  delete
+
+Several key names can be joined together with '-' sign to form key with
+modificators sequence.
 
 CONFIGURATION FILE
 ==================
