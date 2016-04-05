@@ -1,7 +1,6 @@
 #!/usr/bin/python
 """ vws - script to control QEMU/KVM virtual workstations """
 # pylint: disable=bad-builtin
-# pylint: good-names: i,j,k,f,r,ex
 from ConfigParser import ConfigParser
 from argparse import ArgumentParser, Namespace
 import fcntl
@@ -21,7 +20,7 @@ def find_vm(name):
             continue
         if (name in os.listdir(dirname) and
                 os.access(os.path.join(dirname, name, "start"), os.X_OK)):
-            return os.path.join(dirname,  name)
+            return os.path.join(dirname, name)
     raise ValueError("Machine %s not found." % name)
 
 
@@ -360,8 +359,8 @@ def cmd_stoprecord(options):
 
 def cmd_sendkey(options):
     """ vws sendkey """
-    print send_command(options.sock,"sendkey "+options.keyspec);
-    
+    print send_command(options.sock, "sendkey " + options.keyspec)
+
 def cmd_version(dummy_options):
     """ vws cersion """
     print VERSION
@@ -511,7 +510,7 @@ fi
 def cmd_create(parsed_args):
     """ vws create - create new VM """
     BADSIZE = "Invalid size of %s specifed %s. Should have K, M or G suffix"
-    global TEMPLATE 
+    global TEMPLATE
     if not parsed_args.image and not validate_size(parsed_args.size):
         print >>sys.stderr, BADSIZE % ("disk", parsed_args.size)
         sys.exit(1)
@@ -547,7 +546,7 @@ def cmd_create(parsed_args):
                           (macaddr, parsed_args.net))
     else:
         options["net"] = "-net nic,macaddr=%s -net user" % (macaddr,)
-    options["qemubinary"] = 'qemu-system-'+parsed_args.arch
+    options["qemubinary"] = 'qemu-system-' + parsed_args.arch
     options["vga"] = parsed_args.vga
     NOACCEL = "KVM acceleration disabled due to "
     if not parsed_args.arch in ('i386', 'x86_64'):
@@ -580,7 +579,7 @@ def cmd_create(parsed_args):
     driveopts = {"interface":parsed_args.diskif, "image":drivename}
     if parsed_args.install:
         install_image = os.path.abspath(parsed_args.install)
-    
+
     if parsed_args.image:
         # Copying image file
         print >>sys.stderr, ("Copying %s to %s" %
@@ -719,7 +718,7 @@ p = new_command(cmds, 'record', help='Record audio output from VM')
 p.add_argument('filename', help='wav file to record autdio to')
 new_command(cmds, 'stoprecord', help='stop recording audio')
 p = new_command(cmds, 'sendkey', help='Send a keystroke to VM')
-p.add_argument('keyspec',help='key specification like ctrl-alt-delete');
+p.add_argument('keyspec', help='key specification like ctrl-alt-delete')
 # Create new VM
 p = new_command(cmds, 'create', help="Create new VW")
 p.add_argument("--no-usb", help="Disable USB controller", action='store_const',
