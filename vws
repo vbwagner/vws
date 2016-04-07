@@ -468,6 +468,41 @@ def cmd_commit(options):
             print >>sys.stderr, "VM is not running in snapshot mode"
             sys.exit(1)
 
+def cmd_autostart(options):
+    """
+    Starts all VMs which are in the autostart directory
+    """
+    dirname =  config.get("directories", "AutostartVMs")
+    if not os.access(dirname,os.R_OK):
+        return 
+    for name in os.listdir(dirname):
+        if not os.access(os.path.join(dirname,name,"start"), os.X_OK):
+            continue
+        machine_dir = os.path.join(dirname,name)
+        sock = connect_vm(machine_dir)
+        if sock:
+            # Machine already running
+            sock.shutdown(socket.SHUT_RDWR)
+            sock.close()
+            continue
+        start_opts = Namespace(machine = name,
+                command = 'start',
+                dir = machine_dir,
+                snapshot = False,
+                stopped = True,
+                atrgs = "",
+                gui = False,
+                cdrom = None)
+        try:
+            cmd_start(start_opts)
+            print name," ",
+        finally:
+            # pylint: disable=no-member
+            start_opts.sock.shutdown(socket.SHUT_RDWR)
+    print ""
+
+
+
 TEMPLATE = """#!/bin/sh
 # Get machine name from current directory name
 NAME=$(basename $(pwd))
@@ -661,6 +696,7 @@ p.add_argument("--addr", action='store_const', const=True, default=False,
 p.add_argument("--usb", action='store_const', const=True, default=False,
                dest='usb', help='Show connected USB devices')
 p = cmds.add_parser("version", help="show vws version")
+p = cmds.add_parser("autostart",help="Autostart all VMs marked as autostartable")
 # Power management
 p = new_command(cmds, 'start', help='Start VW and connect to console',
                 description="Start VW if not running and connect " +
