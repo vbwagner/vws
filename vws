@@ -58,9 +58,9 @@ def send_command(sock, command):
         fcntl.flock(sock, fcntl.LOCK_UN)
     return answer
 
-def spiceurl(options):
+def spiceurl(sock):
     """ Returns spice URI for given (as set of parsed args) VM """
-    output = send_command(options.sock, "info spice")
+    output = send_command(sock, "info spice")
     url = None
     for line in output.split("\n"):
         if url is not None:
@@ -118,7 +118,7 @@ def snapshot_mode(sock):
 
 def cmd_spiceuri(options):
     """ vws spiceuri """
-    print spiceurl(options)
+    print spiceurl(options.sock)
 
 
 def cmd_start(options):
@@ -165,7 +165,7 @@ def cmd_start(options):
             options.id = None
             cmd_cdrom(options)
     if options.gui:
-        uri = spiceurl(options)
+        uri = spiceurl(options.sock)
         os.system((config.get('tools', 'viewer') + "&") % uri)
     elif not options.stopped:
         print >>sys.stderr, "VM already running"
@@ -303,14 +303,15 @@ def cmd_usb_remove(options):
 def cmd_list(options):
     """ vws list """
     count = 0
-    search_path = [os.environ['HOME'] + "/VWs",
-                   config.get("directories", "SharedVMs"),
-                   config.get("directories", "AutostartVMs")]
-    for dirname in search_path:
+    search_path = [("private",os.environ['HOME'] + "/VWs"),
+                   ("shared",config.get("directories", "SharedVMs")),
+                   ("autostart",config.get("directories", "AutostartVMs"))]
+
+    maxlen = 0
+    vms = []
+    for (vmtype,dirname) in search_path:
         if not os.access(dirname + "/.", os.X_OK):
             continue
-        maxlen = 0
-        vms = []
         for vmname in os.listdir(dirname):
             if os.access(dirname + "/" + vmname + "/start", os.X_OK):
                 count += 1
@@ -318,20 +319,24 @@ def cmd_list(options):
                 if maxlen < len(vmname):
                     maxlen = len(vmname)
                 if options.state:
+                    f.append(vmtype)
                     sock = connect_vm(dirname + "/" + vmname)
                     if sock is None:
                         state = "stopped"
+                        uri="-"
                     else:
+                        uri=spiceurl(sock)
                         sock.shutdown(socket.SHUT_RDWR)
                         sock.close()
                         state = "running"
                     f.append(state)
+                    f.append(uri)
                 vms.append(f)
-        for f in sorted(vms):
-            if len(f) == 2:
-                print "%*s %s" % (-maxlen, f[0], f[1])
-            else:
-                print f[0]
+    for f in sorted(vms):
+        if len(f) == 4:
+            print "%*s %s   %-9s %s" % (-maxlen, f[0], f[2], f[1], f[3])
+        else:
+            print f[0]
     if not count:
         sys.exit(1)
 
