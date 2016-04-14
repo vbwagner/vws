@@ -384,6 +384,7 @@ def cmd_snapshot(options):
         os.rename(i, newnames[i])
         os.system("qemu-img create -f qcow2 -b \"%s\" \"%s\"" %
                   (newnames[i], i))
+        os.chmod(i,0664)
     return 0
 
 def cmd_snapshots(options):
@@ -437,6 +438,7 @@ def cmd_revert(options):
         os.unlink(drive)
         # create new image with same backing file
         os.system('qemu-img create -f qcow2 -b "%s" "%s"' % (backing, drive))
+        os.chmod(drive,0664)
 
 def cmd_commit(options):
     """
@@ -521,7 +523,8 @@ if [ "$1" = '-cdrom' ]; then
 	CDROM=",file=$1"
 	shift
 fi
-
+#set umask to make machine group-accessable
+umask 002
 {qemubinary} -name $NAME {accel} \\
 -m {memory} \\
 {drive} \\
@@ -540,6 +543,7 @@ fi
 -chardev spicevmc,name=usbredir,id=usbredirchardev1 \\
 -device usb-redir,chardev=usbredirchardev1,id=usbredirdev1 \\
 -daemonize -pidfile pid
+chmod 0660 monitor pid
 """
 
 def cmd_create(parsed_args):
@@ -565,7 +569,7 @@ def cmd_create(parsed_args):
     if parsed_args.shared:
         machinedir = os.path.join(config.get("directories", "SharedVMs"),
                                   parsed_args.machine)
-        dirmode = 0755
+        dirmode = 0775
     else:
         machinedir = os.path.join(os.environ["HOME"], "VWs",
                                   parsed_args.machine)
@@ -611,6 +615,13 @@ def cmd_create(parsed_args):
         sys.exit(1)
     #  Creating directory for VM
     os.makedirs(machinedir, dirmode)
+    if parsed_args.shared:
+        import grp
+        gid=grp.getgrnam(config.get("permissions","vm_group")).gr_gid
+        uid=os.getuid() 
+        os.chown(machinedir,uid,gid)
+        if config.getboolean("permissions","setgid_vm"):  
+            os.chmod(machinedir,02775)
     driveopts = {"interface":parsed_args.diskif, "image":drivename}
     if parsed_args.install:
         install_image = os.path.abspath(parsed_args.install)
@@ -629,7 +640,7 @@ def cmd_create(parsed_args):
         os.chdir(machinedir)
         os.system("qemu-img create -f qcow2 %s %s" %
                   (drivename, parsed_args.size))
-
+    os.chmod(drivename,0664)
     # pylint: disable=star-args
     options["drive"] = options["drive"].format(**driveopts)
     if hasattr(parsed_args, "debug") and parsed_args.debug:
@@ -682,6 +693,10 @@ config.add_section('tools')
 config.set('tools', 'viewer', 'remote-viewer %s')
 config.set('tools', 'bridge_list', '/sbin/brctl show')
 config.set('tools', 'lsusb', 'lsusb')
+config.add_section('permissions')
+config.set('permissions','vm_group','kvm')
+config.set('permissions','autostart_user','root')
+config.set('permissions','setgid_vm','yes')
 # Read configration files
 config.read(['/etc/vws.conf', os.environ['HOME'] + '/.vwsrc'])
 # Parse argument
@@ -792,6 +807,7 @@ p = new_command(cmds, 'spiceuri', help='Output spice URI of machine')
 
 parsed_args = args.parse_args(sys.argv[1:])
 
+os.umask(002)
 # Create command is totally different, so it is handled separately
 if parsed_args.command == 'create':
     cmd_create(parsed_args)
@@ -818,6 +834,7 @@ if hasattr(parsed_args, 'machine'):
             sys.exit(1)
         else:
             parsed_args.stopped = True
+
 try:
     func(parsed_args)
 finally:
