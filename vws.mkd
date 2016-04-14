@@ -146,6 +146,17 @@ allow qemu, started from non-root user to add interface to bridge.
 specify which one would be used on VW creation. Really, by manual
 editing of the startup script, you can add several network interfaces to
 VW and connect them to the different bridges.
+
+You should assign some MAC address to the bridge interface used by
+virtual machines. 
+
+If you ethernet interface is part of the bridge, it already have one.
+Otherwise use command
+
+   ip link set dev *bridge_name* address XX:XX:XX:XX:XX:XX
+
+or some distribution-specific configuration file.
+
 3. Setup you host system to forward packets from bridge network to
 outside internet. You can either use NAT, or include your ethernet
 interface into bridge.
@@ -264,6 +275,11 @@ command, so you can use other **vws** command in parallel with
 Prints out URI you should feed into your spice viewer to access this
 machine.
 
+**vws list** [ **--state** ]
+
+Lists available virtual machines. If **--state** option is given, prints
+out state (running or stoped) type (private or shared) and spice URI (if
+machine is running).
 
 **vws sendkey** *machine* *keyspec*
 
@@ -307,6 +323,7 @@ Configuration file for [vws], which uses standard .ini format.
 There are following sections
 
     [directories]
+	[permissions]
     [create options]
     [tools]
 
@@ -324,6 +341,18 @@ If you are using more or less sensible disk layout, i.e. create separate partiti
 It is recommended to have both these directories on the same partition, so moving VM from autostart to shared and vice versa would not involve physically copying of the files.
 
 **NB** *autostart is planned for version 0.3*
+
+Permissions
+-----------
+
+Options of this section controls interaction with unix user names and
+groups for shared and authostarted VMs.
+
+* autostart_user - user name of user which should all autostart vms run
+run as
+* vm_group - group name which should own all shared VMs.
+* setgid_vm - boolean, true if setgid attribute should be set on shared
+ VM directory
 
 Create options
 --------------

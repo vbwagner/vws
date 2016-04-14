@@ -479,7 +479,11 @@ def cmd_autostart(options):
     """
     Starts all VMs which are in the autostart directory
     """
+    import pwd
     dirname =  config.get("directories", "AutostartVMs")
+    os.seteuid(pwd.getpwnam(
+                            config.get("permissions","autostart_user")
+                            ).pw_uid)
     if not os.access(dirname,os.R_OK):
         return 
     for name in os.listdir(dirname):
