@@ -5,7 +5,7 @@ After=network.target dnsmasq.service
 [Service]
 Type=forking
 ExecStart=vws autostart
-ExecStop=vws shutdown
+ExecStop=vws shutdown --wait
 Restart=no
 [Install]
 WantedBy=muiti-user.target

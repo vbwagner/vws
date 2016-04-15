@@ -592,25 +592,26 @@ def cmd_shutdown(options):
             if not os.access(dirname, os.X_OK):
                 continue
             for vm in os.listdir(dirname):
-                mon  = os.path.join(dirname,vm,"monitor")
-                if os.access(mon,os.W_OK):
-                    sock=socket.socket(socket.AF_UNIX)
-                    try:
-                        sock.connect(mon)
-                    except IOError as ex:
-                        # virtual machine is not running 
-                        continue
-                    count += 1
-                    try:
-                        send_command(sock,command)
-                    except IOError:
-                        #When hard_stopping,socket might be closed by way
-                        pass
+                if not os.access(os.path.join(dirname,vm,"start"),os.X_OK):
+                    # Not a VM
+                    continue
+                sock=connect_vm(os.path.join(dirname,vm))
+                if not sock:
+                    # not running
+                    continue
+                count += 1
+                try:
+                    send_command(sock,command)
+                except IOError:
+                    #When hard_stopping,socket might be closed by way
+                    pass
                     sock.shutdown(socket.SHUT_RDWR)
                     sock.close()
         if not options.wait:
             return
-        time.sleep(10)
+        print "%d machines left running" % count
+        if count>0:
+            time.sleep(10)
 
 
 TEMPLATE = """#!/bin/sh
