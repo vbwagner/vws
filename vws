@@ -52,7 +52,7 @@ def send_command(sock, command):
         while not answer.endswith("(qemu) "):
             chunk = sock.recv(1024)
             if chunk == '':
-                raise IOError("Unexpected EOF From monitor")
+                raise IOError("Unexpected EOF from monitor")
             answer += chunk
     finally:
         fcntl.flock(sock, fcntl.LOCK_UN)
@@ -132,7 +132,7 @@ def read_netinfo(filename):
     """ Reads network information from start script """
     with open(filename,"r") as f:
        for line in f:
-          match=re.search("-net nic,macaddr=(\\S+) -net ([^,]+)",line)
+          match=re.search("-net nic,macaddr=(\\S+) -net ([^, ]+)",line)
           if match:
               f={"mac":match.group(1)}
               if match.group(2) == "user":
@@ -218,7 +218,14 @@ def cmd_start(options):
 def cmd_stop(options):
     """ vws stop """
     if snapshot_mode(options.sock) or options.hard:
-        print send_command(options.sock, 'quit')
+        try:
+           send_command(options.sock, 'quit')
+        except IOError as e:
+           # Expect IOError here
+           if e.message.find("EOF from monitor"):
+                print "monitor socket closed"
+           else:
+                raise e
     else:
         print send_command(options.sock, 'system_powerdown')
 
