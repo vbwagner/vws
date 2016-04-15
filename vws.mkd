@@ -12,9 +12,9 @@ SYNOPSIS
 
 **vws create** *name* [ **--install** *isoimage* ]
 
-**vws list**  [**--state**] [**--usb** ]
+**vws list**  \[**--state**\] \[**--usb**\]
 
-**vws start** *name* [**--no-gui**] [**--cdrom** *iso-image*]
+**vws start** *name* [**--no-gui**] \[**--cdrom** *iso-image*\]
 
 **vws stop** *name* [**--hard**]
 
@@ -22,7 +22,7 @@ SYNOPSIS
 
 **vws reset** *name*
 
-**vws cdrom** [ **--id** *id* ] [ *iso-image* | **--eject *]
+**vws cdrom** \[**--id** *id*\] \[*iso-image*|**--eject**\]
 
 **vws usb insert** *name*  *pattern*
 
@@ -39,6 +39,10 @@ SYNOPSIS
 **vws commit** *name*
 
 **vws snapshots**  *name*
+
+**vws autostart**
+
+**vws shutdown** \[**--wait**\] \[**--timeout** *sec*\]
 
 **vws screenshot** *name* *filename.ppm*
 
@@ -209,6 +213,28 @@ command would restore this state.
 **vws reset** *machine*
 
 Requests the reboot of guest OS via ACPI.
+
+AUTOSTART AND SHUTDOWN
+----------------------
+
+Machines, placed into system wide directory specified in the
+configuration (see **Configuration
+File** below) would be automatically started at system startup (provided
+that **vws** service is enabled). This is performed using
+
+**vws autostart**
+
+command, which starts all the VMs in autostart directory. It starts VMs
+under special user, specified in the configuration file.
+
+**vws shutdown**  \[**--wait**\] \[**--timeout** *sec*\]
+
+Does more than just stop autostarted VMs. Actually it tries to shut down
+gracefully all the VMs, it found running. If **--wait** option is
+specifed, it repeats scan for running VMs each ten second until
+**--timeout** (default 90) seconds expired. When timeout expired, it
+forcibly stops all remaining VMs. 
+
 
 
 REMOVABLE DEVICE MANAGEMENT

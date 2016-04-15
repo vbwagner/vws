@@ -609,7 +609,6 @@ def cmd_shutdown(options):
                     sock.close()
         if not options.wait:
             return
-        print "%d machines left running" % count
         if count>0:
             time.sleep(10)
 
