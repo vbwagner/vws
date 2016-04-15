@@ -569,6 +569,48 @@ def cmd_autostart(options):
             start_opts.sock.shutdown(socket.SHUT_RDWR)
     print ""
 
+def cmd_shutdown(options):
+    """ Search for all running machines and stops all of them """
+    dirlist=[config.get("directories","AutostartVMs"),
+             config.get("directories","SharedVms")]
+    if os.getresuid()[1] == 0:  
+        import grp
+        dirlist += map(lambda x: os.path.expanduser("~"+x)+"/VWs",
+        grp.getgrnam(config.get("permissions","vm_group")).gr_mem)
+    else:
+        dirlist.append(os.path.expanduser("~")+"/VWs")
+    count = 1 #Fake positive values for there is not postcondition loop in the python
+    forced_finish=time.time()+options.timeout
+    while count > 0:
+        count = 0
+        if time.time() < forced_finish:
+            command = "system_powerdown"
+        else:
+            command = "quit"
+            
+        for dirname in dirlist:
+            if not os.access(dirname, os.X_OK):
+                continue
+            for vm in os.listdir(dirname):
+                mon  = os.path.join(dirname,vm,"monitor")
+                if os.access(mon,os.W_OK):
+                    sock=socket.socket(socket.AF_UNIX)
+                    try:
+                        sock.connect(mon)
+                    except IOError as ex:
+                        # virtual machine is not running 
+                        continue
+                    count += 1
+                    try:
+                        send_command(sock,command)
+                    except IOError:
+                        #When hard_stopping,socket might be closed by way
+                        pass
+                    sock.shutdown(socket.SHUT_RDWR)
+                    sock.close()
+        if not options.wait:
+            return
+        time.sleep(10)
 
 
 TEMPLATE = """#!/bin/sh
@@ -773,12 +815,15 @@ p = cmds.add_parser("list", help="List existing VWs",
                     description="List existing VWs")
 p.add_argument("--state", action='store_const', const=True, default=False,
                dest='state', help='Show state of the machine')
-p.add_argument("--addr", action='store_const', const=True, default=False,
-               dest='addr', help='Show mac address and spice port')
 p.add_argument("--usb", action='store_const', const=True, default=False,
                dest='usb', help='Show connected USB devices')
 p = cmds.add_parser("version", help="show vws version")
 p = cmds.add_parser("autostart",help="Autostart all VMs marked as autostartable")
+p = cmds.add_parser("shutdown",help="shut down all running VMs")
+p.add_argument("--wait",help="wait until all machines would be shoutdown",
+    action="store_const", const=True, default=False, dest="wait")
+p.add_argument("--timeout",type=int,default=90,
+   help="how long to way for VMs shutdown before forcing it off")
 # Power management
 p = new_command(cmds, 'start', help='Start VW and connect to console',
                 description="Start VW if not running and connect " +

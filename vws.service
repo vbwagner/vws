@@ -1,0 +1,12 @@
+[Unit]
+Description=Virtual Workstation Autostart
+Documentation=man:vws(1)
+After=network.target dnsmasq.service
+[Service]
+Type=forking
+ExecStart=vws autostart
+ExecStop=vws shutdown
+Restart=no
+[Install]
+WantedBy=muiti-user.target
+Alias=vws.service
