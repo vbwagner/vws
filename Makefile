@@ -13,9 +13,9 @@ clean:
 	rm *.1
 
 install: vws vws.1 find_free_port.1 vws.conf
-	$(INSTALL) -d -m 755 -o root $(DESTDIR)$(bindir)
-	$(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)
-	$(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)/man1
+	[ -d $(DESTDIR)$(bindir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(bindir)
+	[ -d $(DESTDIR)$(mandir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)
+	[ -d $(DESTDIR)$(mandir)/man1 ]||$(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)/man1
 	$(INSTALL) -c -m 755 -o root find_free_port $(DESTDIR)$(bindir)
 	$(INSTALL) -c -m 755 -o root vws $(DESTDIR)$(bindir)
 	[ -f $(DESTDIR)$(sysconfdir)/vws.conf ]|| $(INSTALL) -c -m 644 -o root vws.conf $(DESTDIR)$(sysconfdir)

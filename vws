@@ -90,6 +90,23 @@ def list_bridges():
             lst.append(name)
     return lst
 
+def parse_arp(iface):
+    """
+    Returns map which maps mac addresses to IPs for specified interface"
+    """
+    addr_map = {}
+    pipe = os.popen(config.get("tools","arp")+" -n -i "+iface, "r")
+    for line in pipe:
+        data = line.split() 
+        mac=data[2]
+        if mac == "HWAddress":
+            continue
+        if mac == iface:
+            # Foind line with (incomplete) entry
+            continue
+        addr_map[data[2]]=data[0]
+    return addr_map
+
 def validate_size(size):
     """ Checks if size argument has proper format """
     return re.match('\\d+[KMG]', size) is not None
@@ -111,7 +128,35 @@ def snapshot_mode(sock):
     answer = send_command(sock, "info block")
     return re.search(": /tmp", answer) is not None
 
-
+def read_netinfo(filename):
+    """ Reads network information from start script """
+    with open(filename,"r") as f:
+       for line in f:
+          match=re.search("-net nic,macaddr=(\\S+) -net ([^,]+)",line)
+          if match:
+              f={"mac":match.group(1)}
+              if match.group(2) == "user":
+                   f["iface"]="user"
+              elif match.group(2) == "bridge":
+                   f["iface"]=re.search("br=(\\S+)",line).group(1)
+              else:
+                   f["iface"]="unknown";
+              return f
+    return {"iface":"unknown","mac":"?","ip":"?"}
+def get_netinfo(sock):
+    """ Gets network information from the running VM """
+    answer = send_command(sock, "info network")
+    match=re.search("bridge\\.0:.*,br=(\\S+).*macaddr=(\\S+)", answer, re.S)
+    if match:
+        return {"iface":match.group(1), "mac":match.group(2)}
+    else:
+        match = re.search("user.0:.*net=([^,]+).*\n.*macaddr=(\\S+)",answer)
+        if match:
+           return {"iface":"user", "ip":match.group(1), 
+                    "mac":match.group(2)}
+        else:
+           print >>sys.stderr,answer
+           return {"iface":"unknown","ip":"?","mac":"?","card":"?"}
 #
 # command implementation
 #
@@ -309,34 +354,46 @@ def cmd_list(options):
 
     maxlen = 0
     vms = []
+    bridges = set()
     for (vmtype,dirname) in search_path:
         if not os.access(dirname + "/.", os.X_OK):
             continue
         for vmname in os.listdir(dirname):
             if os.access(dirname + "/" + vmname + "/start", os.X_OK):
                 count += 1
-                f = [vmname]
+                f = {"name":vmname}
                 if maxlen < len(vmname):
                     maxlen = len(vmname)
                 if options.state:
-                    f.append(vmtype)
+                    f["type"]=vmtype
                     sock = connect_vm(dirname + "/" + vmname)
                     if sock is None:
-                        state = "stopped"
-                        uri="-"
+                        f.update({"state":"stopped","uri":"-","ip":"-"})
+                        f.update(read_netinfo(dirname + "/" + vmname + "/start"))
                     else:
                         uri=spiceurl(sock)
+                        f["uri"]=uri[uri.rindex(":")+1:]
+                        f.update(get_netinfo(sock))
+                        if "ip" not in f:
+                            bridges.add(f["iface"])
                         sock.shutdown(socket.SHUT_RDWR)
                         sock.close()
-                        state = "running"
-                    f.append(state)
-                    f.append(uri)
+                        f["state"] = "running"
                 vms.append(f)
-    for f in sorted(vms):
-        if len(f) == 4:
-            print "%*s %s   %-9s %s" % (-maxlen, f[0], f[2], f[1], f[3])
+    arp_data={}
+    for bridge in bridges:
+        arp_data.update(parse_arp(bridge))
+    for f in sorted(vms,key=lambda x: x["name"]):
+        if "state" in f:
+            if "mac" in f and not "ip" in f:
+                if f["mac"] in arp_data:
+                    f["ip"] = arp_data[f["mac"]]
+                else:
+                    f["ip"] = "-"
+            f["name"] = f["name"].ljust(maxlen)
+            print "%(name)s %(state)s   %(type)-9s %(uri)-4s %(iface)-5s %(mac)s %(ip)s " % f
         else:
-            print f[0]
+            print f["name"]
     if not count:
         sys.exit(1)
 
@@ -702,6 +759,7 @@ config.add_section('tools')
 config.set('tools', 'viewer', 'remote-viewer %s')
 config.set('tools', 'bridge_list', '/sbin/brctl show')
 config.set('tools', 'lsusb', 'lsusb')
+config.set('tools', 'arp', '/usr/sbin/arp')
 config.add_section('permissions')
 config.set('permissions','vm_group','kvm')
 config.set('permissions','autostart_user','root')

@@ -266,9 +266,11 @@ Stop recording sound.
 **vws monitor** *machine*
 
 Attaches to the machine monitor and allows user to send monitor commands
-from the keyboard and see output. Uses lockin common to all **vws**
+from the keyboard and see output. Uses locking common to all **vws**
 command, so you can use other **vws** command in parallel with
-**monitor** command running.
+**monitor** command running. Use **Ctrl-D** to exit monitor mode, because if
+you send **quit** command it would quit virtual machine, not the
+interaction with it.
 
 **vws spiceuri** *machine*
 
