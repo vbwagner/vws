@@ -9,7 +9,7 @@ import errno
 import re
 import os, sys, time, os.path
 
-VERSION = 0.2
+VERSION = 0.4
 def find_vm(name):
     """ Search and return VM directory """
     search_path = [os.path.join(os.environ['HOME'], "VWs"),
