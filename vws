@@ -71,6 +71,7 @@ def spiceurl(sock):
             if url.startswith('*:'):
                 url = "localhost"+url[1:]
     if url is None:
+        print >>sys.stderr, "ERROR parsing 'info spice' output:",output
         return None
     return "spice://" + url.rstrip('\r')
 
@@ -379,13 +380,17 @@ def cmd_list(options):
                         f.update(read_netinfo(dirname + "/" + vmname + "/start"))
                     else:
                         uri=spiceurl(sock)
-                        f["uri"]=uri[uri.rindex(":")+1:]
-                        f.update(get_netinfo(sock))
-                        if "ip" not in f:
-                            bridges.add(f["iface"])
-                        sock.shutdown(socket.SHUT_RDWR)
-                        sock.close()
-                        f["state"] = "running"
+                        if uri is None:
+                            f.update({"state":"problem","uri":"None","ip":"-"})
+                            f.update(read_netinfo(dirname + "/" + vmname + "/start"))
+                        else:
+                            f["uri"]=uri[uri.rindex(":")+1:]
+                            f.update(get_netinfo(sock))
+                            if "ip" not in f:
+                                bridges.add(f["iface"])
+                            sock.shutdown(socket.SHUT_RDWR)
+                            sock.close()
+                            f["state"] = "running"
                 vms.append(f)
     arp_data={}
     for bridge in bridges:

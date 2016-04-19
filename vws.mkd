@@ -93,7 +93,7 @@ user workplace), or from host where VW is running. ISO images can be
 mounted as CDROMs only from host.
 
 VW CREATION
------------
+===========
 
 **vws create** command creates basic layout of the virtual machine -
 virtual disk image and startup script and optionally starts installation
@@ -173,13 +173,70 @@ problem to configure IP address on each VW manually. If you are planning
 to deploy many VWs with different operating systems, it is better to
 have DHCP running.
 
+Options of **vws create** command
+---------------------------------
+
+Almost all options of create command can be omitted. In this case,
+defaults from **/etc/vws.conf** or **${HOME}/.vwsrc**  would be used.
+
+Typically one needs just **--image** or **--install** option, unless he
+wants to alter hardware configuration.
+
+**--no-usb**
+
+  : disable USB controller and USB redirection.
+
+**--no-sound**
+
+  : disable sound card.
+
+**--sound** *cardtype*
+
+  : Use given soundcard model. Can be comma-separated list of card models.  Use  ``qemu-system -soundhw help``  for list of sound cards, supported on your system.
+
+**--arch** *cputype*
+
+  : Emulated architecture. Note that emulation of foreign arch can be very slow.
+
+**--vga** *cardtype*
+
+  : Video card type (cirrus,std,vmware,qxl). Use **qxl** unless you are sure that guest OS doesn't work with it.
+
+**--mem** *size*
+
+  : Size of memory. Can have suffix **M** for megabytes and **G** for gigabytes
+
+**--size** *size*
+
+  : Size of primary disk image to create. Not needed if **--image** is specified.
+
+**--net** *ifname*
+
+  : Network interface name. Typically it is name of bridge interface which would be used to add network interface of virtual machine. Bridge interface must exist before issuing **create** command and preferable should run some DHCP server. Also word **user** can be used instead of bridge name, which means to use QEMU user mode networking.
+
+**--diskif** *type*:
+
+  : Disk interface (virtio, scsi, ide). **virtio** interface is fastest, but some OSes do not support it out of the box. So, you may need to install OS using **ide** or **scsi** interface, then install virtio drivers and then change interface.
+
+**--image** *filename*
+
+  : Existing disk image to import. If this option is specified, primary disk image would be created by importing given image, rather creating new one of specified **--size**. Import would always create a copy, not use original image. Image can have any format, supported by **qemu-img**(1), including VMware and VirtualBox images.
+
+**--shared**
+
+  : Create shared VW instead of private one
+  
+**--install** *filename.iso*
+
+  : ISO image to install OS from. If this option is specified, virtual machine would be started immediately after creation and given image would be booted from.
+
 USAGE
 =====
 
 STARTING AND STOPPING
 ---------------------
 
-**vws start** \[ **--cdrom** _iso-image_\] \[**--snapshot**\] \[ --no-gui \] *vw-name*
+**vws start** \[ **--cdrom** _iso-image_\] \[**--snapshot**\] \[**--no-gui**\] \[**--args** *qemu-args*\] *vw-name*
 
 Starts virtual machine. Optionally, connects specified *iso-image* to
 its CD-ROM drive. If **--no-gui** is not specified, starts spice client
