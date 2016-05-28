@@ -251,7 +251,6 @@ def cmd_monitor(options):
                 print "UNSOLICITED MESSAGE %" + options.sock.readline().rstrip()
     except KeyboardInterrupt:
         print "Keyboard interrupt"
-        sys.exit()
 
 def cmd_reset(options):
     """ vws reset """
@@ -278,10 +277,11 @@ def cmd_cdrom(options):
                 break
     if options.id is None:
         print >>sys.stderr, "No CDROM device found among:\n" + devlist
-        sys.exit(1)
+        return 1
     if options.file == "":
+
         print >>sys.stderr, "Please specify either --eject or iso image"
-        sys.exit(1)
+        return 1
     if options.file is None:
         answer = send_command(options.sock, "eject " + options.id)
     else:
@@ -303,6 +303,7 @@ def find_usb(options, devices):
     elif not hasattr("address", options):
         print >>sys.stderr, ("Address or search pattern for device " +
                              "is not specified")
+        options.sock.close()
         sys.exit(1)
     else:
         return options.address
@@ -550,9 +551,13 @@ def cmd_autostart(options):
     """
     import pwd
     dirname =  config.get("directories", "AutostartVMs")
-    os.seteuid(pwd.getpwnam(
-                            config.get("permissions","autostart_user")
-                            ).pw_uid)
+    userinfo=pwd.getpwnam(config.get("permissions","autostart_user"))
+    if not userinfo:
+        print >>sys.stderr, ("User %s doesn't exists %s" % 
+                             config.get("permissions","autostart_user"))
+        sys.exit(1)
+    os.setgid(userinfo.pw_gid)
+    os.setuid(userinfo.pw_uid)
     if not os.access(dirname,os.R_OK):
         return 
     for name in os.listdir(dirname):
@@ -570,7 +575,7 @@ def cmd_autostart(options):
                 dir = machine_dir,
                 snapshot = False,
                 stopped = True,
-                atrgs = "",
+                args = "",
                 gui = False,
                 cdrom = None)
         try:
@@ -578,7 +583,8 @@ def cmd_autostart(options):
             print name," ",
         finally:
             # pylint: disable=no-member
-            start_opts.sock.shutdown(socket.SHUT_RDWR)
+            if start_opts.sock:
+                start_opts.sock.shutdown(socket.SHUT_RDWR)
     print ""
 
 def cmd_shutdown(options):
