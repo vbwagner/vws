@@ -669,6 +669,7 @@ umask 002
 -chardev spicevmc,name=usbredir,id=usbredirchardev1 \\
 -device usb-redir,chardev=usbredirchardev1,id=usbredirdev1 \\
 -daemonize -pidfile pid
+chgrp {group} monitor pid
 chmod 0660 monitor pid
 """
 
@@ -690,6 +691,7 @@ def cmd_create(parsed_args):
                "drive":"-drive media=disk,index=0,if={interface},file={image}",
                "cdrom":"-drive media=cdrom,index=2,if=ide",
                "sound":"-soundhw hda",
+               "group":config.get("permissions","vm_group"),
                "usb":"-usb"}
     macaddr = ":".join(["%02x" % ord(x) for x in  chr(0x52) + os.urandom(5)])
     if parsed_args.shared:
@@ -769,6 +771,7 @@ def cmd_create(parsed_args):
     os.chmod(drivename,0664)
     # pylint: disable=star-args
     options["drive"] = options["drive"].format(**driveopts)
+    
     if hasattr(parsed_args, "debug") and parsed_args.debug:
         print repr(driveopts), repr(options["drive"])
         print repr(options)
