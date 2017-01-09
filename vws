@@ -38,7 +38,7 @@ def connect_vm(vm_dir):
             return None
         else:
             raise ex
-    readfd, dummy_w, dummy_x = select.select([sock], [], [], 0.001)
+    readfd, dummy_w, dummy_x = select.select([sock], [], [], 0.1)
     if sock in readfd:
         dummy_greeting = sock.recv(1024)
     return sock
