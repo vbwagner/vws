@@ -357,6 +357,7 @@ def cmd_usb_remove(options):
 
 def cmd_list(options):
     """ vws list """
+    import fnmatch
     count = 0
     search_path = [("private",os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs")),
                    ("shared",config.get("directories", "SharedVMs")),
@@ -370,6 +371,13 @@ def cmd_list(options):
             continue
         for vmname in os.listdir(dirname):
             if os.access(dirname + "/" + vmname + "/start", os.X_OK):
+                matches=False
+                for p in options.pattern:
+                    if fnmatch.fnmatch(vmname,p):
+                        matches=True
+                        break
+                if not matches:
+                    continue
                 count += 1
                 f = {"name":vmname}
                 if maxlen < len(vmname):
@@ -841,6 +849,7 @@ p.add_argument("--state", action='store_const', const=True, default=False,
                dest='state', help='Show state of the machine')
 p.add_argument("--usb", action='store_const', const=True, default=False,
                dest='usb', help='Show connected USB devices')
+p.add_argument("pattern", nargs='*',default='*',help="Name patterns")
 p = cmds.add_parser("version", help="show vws version")
 p = cmds.add_parser("autostart",help="Autostart all VMs marked as autostartable")
 p = cmds.add_parser("shutdown",help="shut down all running VMs")

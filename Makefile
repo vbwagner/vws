@@ -10,9 +10,12 @@ man: vws.1 find_free_port.1
 	pandoc -s -t man -o $@ $+
 
 clean:
-	rm *.1
+	rm -f *.1 vws.service
 
-install: vws vws.1 find_free_port.1 vws.conf
+vws.service: vws.service.in
+	sed 's!@bindir@!$(bindir)!' $+ > $@
+
+install: vws vws.1 find_free_port.1 vws.conf vws.service
 	[ -d $(DESTDIR)$(bindir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(bindir)
 	[ -d $(DESTDIR)$(mandir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)
 	[ -d $(DESTDIR)$(mandir)/man1 ]||$(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)/man1

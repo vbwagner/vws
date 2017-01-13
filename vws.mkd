@@ -12,7 +12,7 @@ SYNOPSIS
 
 **vws create** *name* [ **--install** *isoimage* ]
 
-**vws list**  \[**--state**\] \[**--usb**\]
+**vws list**  \[**--state**\] \[**--usb**\] \[ *pattern* ... \]
 
 **vws start** *name* [**--no-gui**] \[**--cdrom** *iso-image*\]
 
@@ -360,11 +360,14 @@ interaction with it.
 Prints out URI you should feed into your spice viewer to access this
 machine.
 
-**vws list** [ **--state** ]
+**vws list** [ **--state** ] \[ **--usb** \] \[ *pattern* .. \]
 
 Lists available virtual machines. If **--state** option is given, prints
-out state (running or stoped) type (private or shared) and spice URI (if
-machine is running).
+out state (running or stopped) type (private or shared) spice URI (if
+machine is running), mac and IP address. Pattern is shell-style wildcard 
+which limits machines to be shown. Don't forget to quote pattern from shell. It
+should be expanded. **--usb** option lists USB devices connected to the
+virtual machine using **vws usb** command.
 
 **vws sendkey** *machine* *keyspec*
 
