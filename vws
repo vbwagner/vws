@@ -663,7 +663,7 @@ umask 002
 -m {memory} \\
 {drive} \\
 {cdrom}$CDROM \\
-{net} \\
+{rtc}{net} \\
 {usb} \\
 {sound} \\
 -chardev socket,server,nowait,path=monitor,id=monitor \\
@@ -700,7 +700,8 @@ def cmd_create(parsed_args):
                "cdrom":"-drive media=cdrom,index=2,if=ide",
                "sound":"-soundhw hda",
                "group":config.get("permissions","vm_group"),
-               "usb":"-usb"}
+               "usb":"-usb",
+               "rtc":""}
     macaddr = ":".join(["%02x" % ord(x) for x in  chr(0x52) + os.urandom(5)])
     if parsed_args.shared:
         machinedir = os.path.join(config.get("directories", "SharedVMs"),
@@ -740,6 +741,8 @@ def cmd_create(parsed_args):
         options["sound"] = '-soundhw ' + parsed_args.sound
 
     options["memory"] = parsed_args.mem
+    if parsed_args.localtime:
+        options["rtc"] = "-rtc base=localtime,clock=host \\\n"
 
     if os.path.exists(machinedir):
         if os.path.exists(os.path.join(machinedir, "start")):
@@ -926,6 +929,9 @@ p.add_argument("--arch", metavar='cputype', help="Emulated architecture",
 p.add_argument("--no-sound", help="Disable sound card", action='store_const',
                const=None, default=config.get('create options', 'sound'),
                dest="sound")
+p.add_argument('--localtime', action='store_const',const=True,default=False,
+                help="Show system clock as local time, not UTC to guest OS",
+                dest='localtime')
 p.add_argument("--sound", metavar='cardtype', help="Specify sound card type",
                dest='sound', default=config.get('create options', 'sound'))
 p.add_argument("--vga", metavar='cardtype',
