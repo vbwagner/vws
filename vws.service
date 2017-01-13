@@ -4,8 +4,8 @@ Documentation=man:vws(1)
 After=network.target dnsmasq.service
 [Service]
 Type=forking
-ExecStart=vws autostart
-ExecStop=vws shutdown --wait
+ExecStart=/usr/local/bin/vws autostart
+ExecStop=/usr/local/bin/vws shutdown --wait
 Restart=no
 [Install]
 WantedBy=muiti-user.target

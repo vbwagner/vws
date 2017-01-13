@@ -8,11 +8,12 @@ import socket, select
 import errno
 import re
 import os, sys, time, os.path
+import pwd
 
 VERSION = 0.4
 def find_vm(name):
     """ Search and return VM directory """
-    search_path = [os.path.join(os.environ['HOME'], "VWs"),
+    search_path = [os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs"),
                    config.get("directories", "SharedVMs"),
                    config.get("directories", "AutostartVMs")]
     for dirname in search_path:
@@ -357,7 +358,7 @@ def cmd_usb_remove(options):
 def cmd_list(options):
     """ vws list """
     count = 0
-    search_path = [("private",os.environ['HOME'] + "/VWs"),
+    search_path = [("private",os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs")),
                    ("shared",config.get("directories", "SharedVMs")),
                    ("autostart",config.get("directories", "AutostartVMs"))]
 
@@ -549,7 +550,6 @@ def cmd_autostart(options):
     """
     Starts all VMs which are in the autostart directory
     """
-    import pwd
     dirname =  config.get("directories", "AutostartVMs")
     userinfo=pwd.getpwnam(config.get("permissions","autostart_user"))
     if not userinfo:
@@ -699,7 +699,7 @@ def cmd_create(parsed_args):
                                   parsed_args.machine)
         dirmode = 0775
     else:
-        machinedir = os.path.join(os.environ["HOME"], "VWs",
+        machinedir = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs",
                                   parsed_args.machine)
         dirmode = 0775
 
@@ -828,7 +828,10 @@ config.set('permissions','vm_group','kvm')
 config.set('permissions','autostart_user','root')
 config.set('permissions','setgid_vm','yes')
 # Read configration files
-config.read(['/etc/vws.conf', os.environ['HOME'] + '/.vwsrc'])
+if os.getuid() != 0:
+    config.read(['/etc/vws.conf',os.path.join(pwd.getpwuid(os.getuid()).pw_dir + '.vwsrc')])
+else:   
+    config.read(['/etc/vws.conf'])
 # Parse argument
 args = ArgumentParser(description="Manage Virtual Workstations")
 cmds = args.add_subparsers(dest='command', help="sub-command help")
