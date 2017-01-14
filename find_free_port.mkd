@@ -26,4 +26,4 @@ where virtual machine can listen for GUI clients.
 SEE ALSO
 ========
 
-**netstat**(8), **vws**(1)
+**vws**(1), **socket**(2), **bind**(2), **listen**(2)

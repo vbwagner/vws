@@ -170,6 +170,9 @@ def cmd_spiceuri(options):
 
 def cmd_start(options):
     """ vws start """
+    if not "DISPLAY" in os.environ:
+        # If cannot start GUI just don't do it.
+        options.gui = False
     if options.stopped:
         arg = ""
         if options.cdrom:
@@ -211,11 +214,11 @@ def cmd_start(options):
             options.file = options.cdrom[0]
             options.id = None
             cmd_cdrom(options)
+    uri = spiceurl(options.sock)
     if options.gui:
-        uri = spiceurl(options.sock)
         os.system((config.get('tools', 'viewer') + "&") % uri)
     elif not options.stopped:
-        print >>sys.stderr, "VM already running"
+        print >>sys.stderr, "VM already running use uri %s" % uri
 
 def cmd_stop(options):
     """ vws stop """
