@@ -1,21 +1,22 @@
 #!/usr/bin/python
-import os,sys,re
-f=os.popen("netstat -nlt4","r")
+import sys,socket,errno
 if len(sys.argv)>1:
-	start=int(sys.argv[1])
+	port=int(sys.argv[1])
 else:
-	start=5900
-s=set()
-for line in f:
-    if not line.startswith("tcp"):
-        continue
-    m=re.search(":(\\d+)\\b",line)
-    if m:
-        s.add(int(m.group(1)))
-i=start
-while i in s:
-    i += 1
-print i
+	port=5900
+    
+s=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+while True:
+    try:
+        s.bind(("",port))
+    except socket.error as e:
+        if e.errno== errno.EADDRINUSE:
+            port+=1
+            continue
+        else:
+            raise e
+    break
 
-        
-
+s.close()
+print port
+    
