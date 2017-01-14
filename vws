@@ -10,7 +10,7 @@ import re
 import os, sys, time, os.path
 import pwd
 
-VERSION = 0.4
+VERSION = 0.5
 def find_vm(name):
     """ Search and return VM directory """
     search_path = [os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs"),
@@ -181,6 +181,8 @@ def cmd_start(options):
             arg = arg+" -snapshot"
         if options.args:
             arg = arg + " " + "".join(options.args)
+        if options.password:
+            os.environ["SPICE_PASSWORD"]=options.password
         print arg
         cwd = os.getcwd()
         os.chdir(options.dir)
@@ -207,7 +209,7 @@ def cmd_start(options):
         if snapshot_id:
             send_command(options.sock, "delvm " + snapshot_id)
     else:
-        if options.snapshot or options.args:
+        if options.snapshot or options.args or options.password:
             print >>sys.stderr, ("Cannot change qemu options. " +
                                  "VM is already running")
         if options.cdrom:
@@ -689,11 +691,9 @@ def cmd_create(parsed_args):
     BADSIZE = "Invalid size of %s specifed %s. Should have K, M or G suffix"
     global TEMPLATE
     if not parsed_args.image and not validate_size(parsed_args.size):
-        print >>sys.stderr, BADSIZE % ("disk", parsed_args.size)
-        sys.exit(1)
+        raise ValueError(BADSIZE % ("disk", parsed_args.size))
     if not validate_size(parsed_args.mem):
-        print >>sys.stderr, BADSIZE % ("memory", parsed_args.size)
-        sys.exit(1)
+        raise ValueError(BADSIZE % ("memory", parsed_args.size))
     drivename = "drive0.qcow2"
     options = {'qemubinary':'qemu-system-x86_64',
                "accel":"-enable-kvm",
@@ -714,13 +714,12 @@ def cmd_create(parsed_args):
         machinedir = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs",
                                   parsed_args.machine)
         dirmode = 0775
-
+   
     if parsed_args.net != 'user':
         bridges = list_bridges()
         if not parsed_args.net in bridges:
-            print >>sys.stderr, ("No such bridge %s. Available ones %s" %
-                                 (parsed_args.net, ", ".join(bridges)))
-            sys.exit(1)
+            raise ValueError("No such bridge %s. Available ones %s" %
+                             (parsed_args.net, ", ".join(bridges)))
         options["net"] = ("-net nic,macaddr=%s -net bridge,br=%s" %
                           (macaddr, parsed_args.net))
     else:
@@ -749,14 +748,14 @@ def cmd_create(parsed_args):
 
     if os.path.exists(machinedir):
         if os.path.exists(os.path.join(machinedir, "start")):
-            print >> sys.stderr, ("Virtual Worstation %s already exists" %
-                                  parsed_args.machine)
+            raise OSError("Virtual Worstation %s already exists" %
+                           parsed_args.machine)
         else:
-            print >> sys.stderr, ("Cannot create VW directory, " +
+            raise OSError("Cannot create VW directory, " +
                                   "something on the way")
-        sys.exit(1)
     #  Creating directory for VM
     os.makedirs(machinedir, dirmode)
+    parsed_args.dir=machinedir
     if parsed_args.shared:
         import grp
         gid=grp.getgrnam(config.get("permissions","vm_group")).gr_gid
@@ -875,6 +874,8 @@ p.add_argument('--args', metavar='string', dest='args', nargs=1, default="",
                help="Specify extra QEMU options")
 p.add_argument("--snapshot", action='store_const', const=True, default=False,
                help="Run without modifying disk image")
+p.add_argument("--password", metavar='string', dest='password',nargs=1,
+                default=None, help="Set password for remote spice connection")
 p = new_command(cmds, 'stop', help='Shut down virtual machine',
                 description="Terminate the VW, gracefully or ungracefully")
 p.add_argument('--hard', help='Power off immediately', action='store_const',
@@ -964,7 +965,14 @@ parsed_args = args.parse_args(sys.argv[1:])
 os.umask(002)
 # Create command is totally different, so it is handled separately
 if parsed_args.command == 'create':
-    cmd_create(parsed_args)
+    try:
+        cmd_create(parsed_args)
+    except Exception as e:
+        print >>sys.stderr,e.message
+        if hasattr(parsed_args,"dir"):
+            import shutil
+            shutil.rmtree(parsed_args.dir)
+            sys.exit(1)
     sys.exit(0)
 
 funcname = "cmd_" + parsed_args.command
