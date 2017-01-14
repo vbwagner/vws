@@ -22,8 +22,8 @@ install: vws vws.1 find_free_port.1 vws.conf vws.service
 	[ -d $(DESTDIR)$(mandir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)
 	[ -d $(DESTDIR)$(mandir)/man1 ]||$(INSTALL) -d -m 755 -o root $(DESTDIR)$(mandir)/man1
 	[ -d $(DESTDIR)$(systemddir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)/lib/systemd/system
-	[ -d $(DESTDIR)$(sysconfdir)] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(sysconfdir)
-	[ -d $(DESTDIR)$(initddir)] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(initddir)
+	[ -d $(DESTDIR)$(sysconfdir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(sysconfdir)
+	[ -d $(DESTDIR)$(initddir) ] || $(INSTALL) -d -m 755 -o root $(DESTDIR)$(initddir)
 	$(INSTALL) -c -m 755 -o root find_free_port $(DESTDIR)$(bindir)
 	$(INSTALL) -c -m 755 -o root vws $(DESTDIR)$(bindir)
 	
