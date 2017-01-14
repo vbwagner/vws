@@ -38,3 +38,6 @@ origtarball: vws find_free_port vws.init vws.service.in  Makefile vws.conf vws.m
 	mkdir vws-$$version; cp $+ vws-$$version; \
 	tar cjf ../vws_$$version.orig.tar.bz2 vws-$$version; \
 	rm -rf vws-$$version
+
+deb: origtarball
+	debuild
