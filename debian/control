@@ -1,0 +1,21 @@
+Source: vws
+Section: otherosfs
+Priority: optional
+Maintainer: Victor Wagner <vitus@wagner.pp.ru>
+Build-Depends: debhelper (>= 9), dh-systemd
+Standards-Version: 3.9.5
+Homepage: https://www.wagner.pp.ru/fossil/vws
+
+Package: vws
+Architecture: all
+Depends: ${misc:Depends}, python,  qemu-system, bridge-utils, net-tools
+Recommends: dnsmasq, virt-viewer
+Description: Simple manger script for QEMU virtual machines
+ Virtual Workstations (VWs) is simple and thin script layer that
+ simplifies creation and use of KVM virtual machines. 
+ .
+ Only user-servicable parts inside.
+ .
+ VMs can be copied around using usial file operation, fine tuned using
+ direct editing of QEMU command-line and controlled via QEMU monitor
+ without interfering with easy to use wrapper scripts.

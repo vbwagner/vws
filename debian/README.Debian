@@ -1,0 +1,82 @@
+vws for Debian
+--------------
+
+If you just want to download something into VM from outside world, you don't need bridge. Just use 'user' networking and it would be all. You can even access parts of host FS using SMB via user networking, although [vws] doesn't provide easy interface to this feature of QEMU.
+
+But if you want to run web server on VM or use ssh to connect it, bridge is the way to go.
+
+qemu-bridge-helper
+------------------
+
+As bridge is a network interface, root access is needed to manipulate it. QEMU includes small utility qemu-bridge-helper which is designed to be installed setuid root and perform just necessary operations.
+
+Unfortunately, Debian package doesn't install this utility setuid root. So first thing you'll need to use bridge networking from qemu, started as normal user, is to make this utility setuid root.
+
+chmod u+s /usr/lib/qemu/qemu-bridge-helper
+
+Bee prepared that after upgrade of the qemu package, suid bit would be lost and your vms would fail to start until you fix it with command above.
+Setting up bridge
+
+In any linux system command
+
+brctl addbr vm0
+
+is used to create bridge interface vm0. After that this interface can be configured via ifconfig or ip command just like any other interface, dnsmasq could be run on it and iptables rules could be set.
+
+But different linux distributions have different ways to automate this task so interface would be created at startup.
+Debian and Ubuntu
+
+You should add following to your /etc/network/interfaces:
+
+auto vm0
+iface vm0 inet static
+     address 192.168.9.1
+     network 192.168.9.255
+     netmask 255.255.255.0
+     bridge_ports none
+     bridge_hw 11:22:33:44:55:66
+
+(of course you can peek any number from 0 to 255 instead of 9 here for third octet of the IP. You can also use addresses from 10.0.0.0/8 or 172.16.0.0/12 instead of 192.168.0.0/16)
+
+You need bridge_hw line (peek any unused mac address you want) because some recent versions of windows recognize bridge interface without static MAC as new network each time they boot.
+
+Interface created this way would be totally isolated from outside world. This is probably not what you want, because you'll at least need to access software updates for your guest os. So, add following line:
+
+post-up iptables -t nat -A POSTROUTING -s 192.168.9.0/24 -j MASQUERADE
+
+and don't forget to enable ipv4 forwaring in the kernel.
+
+Really it is enough for bridge configuration, if you don't mind to setup static IP for each of your VM manually. But using dnsmasq would save you great deal of effort if you have more then 2-3 virtual machine.
+
+dnsmasq
+-------
+
+dnsmasq is a small dhcp and DNS server. If you would run it, it would act as caching DNS for your host machine and also provide IP Addresses for virtual machines and resolve their names.
+
+You need to be sure that it servers DHCP only to your virtual bridge network, not to the physical network which connects you to internet, or it would conflict with dhcp server on your router and cause a mess.
+
+So, you should have at least following lines in your dnsmasq.conf
+
+no-dhcp-interface=eth0
+domain=local.vm,192.168.9.0/24
+dhcp-range=192.168.9.10,192.168.9.150,12h
+
+First line specifies, that your ethernet interface shouldn't be served DHCP by dnsmasq. If your primary interface is wlan0 list it as no-dhcp-interface instead. If you have more than one physical network interface, repeat no-dhcp-interface line for each of them.
+
+Second line tells dnsmask to tell virtual machines that they have local.vm domain (you may pick any other if you want)
+
+And third line specifies range of addresses to give virtual machines, and time for which it this address is valid (12 hours).
+
+Also add 192.168.9.1 into your /etc/hosts with name of you host and local.vm domain, and make sure that your resolv.conf points to local host (0.0.0.0 or 127.0.0.1 as nameserver) and lists local.vm domain in search statement.
+
+With this setup you'll be able to access all your virtual machines using their hostnames, set up during guest OS installations.
+
+When requesting IP from DHCP server they'll tell their hostnams, and dnsmasq would add DNS records to local.vm domain for each assigned address.
+
+dnsmasq would also read your /etc/hosts and create dns records based on addresses and names listed here.
+
+If your machine gets primary address and DNS server via DHCP, consult your distribution documentation, how to make your DHCP client to not pollute your resolv.conf and tell addresses of external DNS servers dnsmasq instead.
+
+In Debian you'll need to install resolvconf package to simplify this task.
+
+ -- Victor Wagner <vitus@wagner.pp.ru>  Sat, 14 Jan 2017 19:48:30 +0300
