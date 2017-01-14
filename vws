@@ -70,7 +70,7 @@ def spiceurl(sock):
         if idx != -1:
             url = line[idx+9:]
             if url.startswith('*:'):
-                url = "localhost"+url[1:]
+                url = socket.getfqdn()+url[1:]
     if url is None:
         print >>sys.stderr, "ERROR parsing 'info spice' output:",output
         return None
