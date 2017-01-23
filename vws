@@ -182,7 +182,7 @@ def cmd_start(options):
         if options.args:
             arg = arg + " " + "".join(options.args)
         if options.password:
-            os.environ["SPICE_PASSWORD"]=options.password
+            os.environ["SPICE_PASSWORD"]=options.password[0]
         print arg
         cwd = os.getcwd()
         os.chdir(options.dir)
@@ -588,6 +588,7 @@ def cmd_autostart(options):
                 dir = machine_dir,
                 snapshot = False,
                 stopped = True,
+		password = None,
                 args = "",
                 gui = False,
                 cdrom = None)
@@ -596,7 +597,7 @@ def cmd_autostart(options):
             print name," ",
         finally:
             # pylint: disable=no-member
-            if start_opts.sock:
+            if hasattr(start_opts,"sock") and start_opts.sock:
                 start_opts.sock.shutdown(socket.SHUT_RDWR)
     print ""
 
