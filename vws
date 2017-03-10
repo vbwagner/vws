@@ -588,7 +588,7 @@ def cmd_autostart(options):
                 dir = machine_dir,
                 snapshot = False,
                 stopped = True,
-		password = None,
+                password = None,
                 args = "",
                 gui = False,
                 cdrom = None)
@@ -682,7 +682,7 @@ umask 002
 -device ich9-usb-uhci1,masterbus=usb.0,firstport=0,multifunction=on \\
 -chardev spicevmc,name=usbredir,id=usbredirchardev1 \\
 -device usb-redir,chardev=usbredirchardev1,id=usbredirdev1 \\
--daemonize -pidfile pid
+-daemonize -pidfile pid {extraargs}
 chgrp {group} monitor pid
 chmod 0660 monitor pid
 """
@@ -705,7 +705,8 @@ def cmd_create(parsed_args):
                "sound":"-soundhw hda",
                "group":config.get("permissions","vm_group"),
                "usb":"-usb",
-               "rtc":""}
+               "rtc":"",
+               "extraargs":"${1:+\"$@\"}"}
     macaddr = ":".join(["%02x" % ord(x) for x in  chr(0x52) + os.urandom(5)])
     if parsed_args.shared:
         machinedir = os.path.join(config.get("directories", "SharedVMs"),
@@ -794,7 +795,7 @@ def cmd_create(parsed_args):
     os.chmod('start', dirmode)
     # If installation media is specified vws start for new vm
     if parsed_args.install:
-        start_opts = Namespace(machine=parsed_args.machine,
+        start_opts = Namespace(machine=parsed_args.machine,password=None,
                                command='start', cdrom=[install_image],
                                dir=machinedir, stopped=True, snapshot=False,
                                args="", gui=True)
@@ -802,7 +803,8 @@ def cmd_create(parsed_args):
             cmd_start(start_opts)
         finally:
             # pylint: disable=no-member
-            start_opts.sock.shutdown(socket.SHUT_RDWR)
+            if hasattr(start_opts,"sock"):
+                start_opts.sock.shutdown(socket.SHUT_RDWR)
 
 #
 # Utility functions for arg parsing
