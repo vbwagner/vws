@@ -1,3 +1,10 @@
+vws (0.5-3) UNRELEASED; urgency=medium
+
+  * Added creation of user kvm (to own autostarted VMs) into postinst
+    script
+
+ -- Victor Wagner <vitus@wagner.pp.ru>  Wed, 30 Aug 2017 21:10:48 +0300
+
 vws (0.5-2) unstable; urgency=medium
 
   * Added dpkg-statoverride for qemu-bridge-helper
