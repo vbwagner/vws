@@ -1,3 +1,10 @@
+vws (0.5-2) unstable; urgency=medium
+
+  * Added dpkg-statoverride for qemu-bridge-helper
+  * Fixed typo in service file
+
+ -- Victor Wagner <vitus@wagner.pp.ru>  Wed, 30 Aug 2017 14:44:22 +0300
+
 vws (0.5-1) unstable; urgency=low
 
   * Initial release 

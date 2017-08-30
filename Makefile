@@ -1,4 +1,4 @@
-prefix=/usr/local
+prefix:=/usr/local
 mandir=$(prefix)/share/man
 bindir=$(prefix)/bin
 sysconfdir=/etc

@@ -8,5 +8,5 @@ ExecStart=@bindir@/vws autostart
 ExecStop=@bindir@/vws shutdown --wait
 Restart=no
 [Install]
-WantedBy=muiti-user.target
+WantedBy=multi-user.target
 Alias=vws.service

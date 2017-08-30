@@ -22,6 +22,7 @@ set -e
 case "$1" in
     purge)
 		update-rc.d vws remove
+		dpkg-statoverride --remove /usr/lib/qemu/qemu-bridge-helper
 	;;
 	
 	remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

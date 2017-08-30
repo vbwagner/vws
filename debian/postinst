@@ -21,7 +21,7 @@ set -e
 case "$1" in
     configure)
 	update-rc.d vws defaults
-	chmod u+s /usr/lib/qemu/qemu-bridge-helper
+	dpkg-statoverride --update --add root kvm 4750 /usr/lib/qemu/qemu-bridge-helper
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

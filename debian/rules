@@ -23,11 +23,12 @@ export prefix
 	dh $@
 override_dh_build override_dh_auto_build:
 	make prefix=/usr
-override_dh_install override_dh_auto_install:
-	make install prefix=/usr DESTDIR=`pwd`/debian/vws
+override_dh_install:
 	dh_systemd_enable
 	dh_installinit
-		
+override_dh_auto_install:
+	make install prefix=/usr DESTDIR=`pwd`/debian/vws
+#	true
 # debmake generated override targets
 # This is example for Cmake (See http://bugs.debian.org/641051 )
 #override_dh_auto_configure:
