@@ -201,6 +201,31 @@ def cmd_start(options):
                     snapshot_id = line[:line.index(' ')]
                     arg = arg + " -loadvm " + snapshot_id
                     break
+        # Check for correct brige name
+        try:
+            os.stat("monitor")
+        except OSError:
+            # We cannot find monitor socket. So this machine might be
+            # never run on this host
+            f=open("start","r+")
+            data=f.read()
+            idx0=data.find("-net bridge,br=")
+            if idx != -1:
+                idx=data.find("=",idx)
+                idx+=1
+                idx2=data.find(" ",idx)
+                bridgename=data[idx:idx2]
+                if not bridgename in list_bridges():    
+                    net = config.get("create options","net")
+                    if net== "user":
+                        data=data[:idx0]+"-net user"+data[idx2:]
+                    else:
+                        data=data[:idx]+net+data[idx2:]
+                    f.seek(0)
+                    f.write(data)
+                    f.truncate()
+            f.close()
+                    
 
         os.system("./start%s" % arg)
         os.chdir(cwd)

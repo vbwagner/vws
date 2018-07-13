@@ -7,6 +7,7 @@ Type=forking
 ExecStart=@bindir@/vws autostart
 ExecStop=@bindir@/vws shutdown --wait
 Restart=no
+RemainAfterExit=yes
 [Install]
 WantedBy=multi-user.target
 Alias=vws.service
