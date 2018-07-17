@@ -10,7 +10,7 @@ import re
 import os, sys, time, os.path
 import pwd
 
-VERSION = 0.5
+VERSION = 0.6
 def find_vm(name):
     """ Search and return VM directory """
     search_path = [os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs"),

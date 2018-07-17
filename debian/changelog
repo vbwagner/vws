@@ -1,4 +1,12 @@
-vws (0.5-3) UNRELEASED; urgency=medium
+vws (0.6-1) unstable; urgency=medium
+
+  * Added RemainAfterExit into systemd unit
+  * Check if machine uses incorrect bridge names
+  * Read away (qemu) prompt from monitor socket before issuing command
+
+ -- Victor Wagner <vitus@wagner.pp.ru>  Tue, 17 Jul 2018 17:16:37 +0300
+
+vws (0.5-3) unstable; urgency=medium
 
   * Added creation of user kvm (to own autostarted VMs) into postinst
     script
