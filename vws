@@ -48,6 +48,13 @@ def send_command(sock, command):
     """ Sends monitor command to given socket and returns answer """
     fcntl.flock(sock, fcntl.LOCK_EX)
     try:
+        # There can be stray (qemu) prompt in the socket. Try to drain
+        # it
+        try:
+            sock.recv(64,socket.MSG_DONTWAIT)
+        except socket.error as e:
+             if e.errno != errno.EAGAIN and e.errno!=errno.EWOULDBLOCK:
+                raise e
         sock.send(command + "\n")
         answer = ""
         while not answer.endswith("(qemu) "):
