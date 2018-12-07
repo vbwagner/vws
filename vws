@@ -216,7 +216,7 @@ def cmd_start(options):
             # never run on this host
             f=open("start","r+")
             data=f.read()
-            idx0=data.find("-net bridge,br=")
+            idx=data.find("-net bridge,br=")
             if idx != -1:
                 idx=data.find("=",idx)
                 idx+=1
