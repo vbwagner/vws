@@ -1,3 +1,9 @@
+vws (0.6-2) unstable; urgency=medium
+
+  * Fixed bridge-checking code introduced in 0.6
+
+ -- Victor Wagner <v.wagner@postgrespro.ru>  Fri, 07 Dec 2018 16:13:55 +0300
+
 vws (0.6-1) unstable; urgency=medium
 
   * Added RemainAfterExit into systemd unit

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- encoding: utf-8 -*-
 """ vws - script to control QEMU/KVM virtual workstations """
 # pylint: disable=bad-builtin
 from ConfigParser import ConfigParser
@@ -79,7 +80,9 @@ def spiceurl(sock):
             if url.startswith('*:'):
                 url = socket.getfqdn()+url[1:]
     if url is None:
-        print >>sys.stderr, "ERROR parsing 'info spice' output:",output
+        if output.endswith('(qemu)'):
+            return spiceurl(sock)
+        print >>sys.stderr, "ERROR parsing 'info spice' output:«",output,"»"
         return None
     return "spice://" + url.rstrip('\r')
 
