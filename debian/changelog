@@ -1,3 +1,9 @@
+vws (0.7-1) unstable; urgency=medium
+
+  * Make spiceuri command more robust
+
+ -- Victor Wagner <v.wagner@postgrespro.ru>  Thu, 06 Jun 2019 18:10:04 +0300
+
 vws (0.6-2) unstable; urgency=medium
 
   * Fixed bridge-checking code introduced in 0.6
