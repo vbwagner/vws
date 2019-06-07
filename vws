@@ -80,7 +80,7 @@ def spiceurl(sock):
             if url.startswith('*:'):
                 url = socket.getfqdn()+url[1:]
     if url is None:
-        if output.endswith('(qemu)'):
+        if output.rstrip().endswith('(qemu)'):
             return spiceurl(sock)
         print >>sys.stderr, "ERROR parsing 'info spice' output:«",output,"»"
         return None
