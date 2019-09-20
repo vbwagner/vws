@@ -1,1 +1,3 @@
-good-names: i,j,k,f,r,ex
+[default]
+good-names: i,j,k,f,r,p,ex
+
