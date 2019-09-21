@@ -59,13 +59,13 @@ def send_command(sock, command):
         except socket.error as ex:
             if ex.errno != errno.EAGAIN and ex.errno != errno.EWOULDBLOCK:
                 raise ex
-        sock.send(command + "\n")
+        sock.send((command + "\n").encode("utf-8"))
         answer = ""
         while not answer.endswith("(qemu) "):
             chunk = sock.recv(1024)
-            if chunk == '':
+            if chunk == b'':
                 raise IOError("Unexpected EOF from monitor")
-            answer += chunk
+            answer += chunk.decode("utf-8")
     finally:
         fcntl.flock(sock, fcntl.LOCK_UN)
     return answer
@@ -110,7 +110,7 @@ def parse_arp(iface):
     Returns map which maps mac addresses to IPs for specified interface"
     """
     addr_map = {}
-    pipe = os.popen("%s -n -u %s" % (config.get("tools", "arp"), iface), "r")
+    pipe = os.popen("%s -n -i %s" % (config.get("tools", "arp"), iface), "r")
     for line in pipe:
         data = line.split()
         mac = data[2]
@@ -147,7 +147,7 @@ def read_netinfo(filename):
     """ Reads network information from start script """
     with open(filename, "r") as f:
         for line in f:
-            match = re.search("-net nic,macaddr=(\\S+) -net ([^, ]+)", line)
+            match = re.search("-net nic,(?:\S*,)?macaddr=(\\S+) -net ([^, ]+)", line)
             if match:
                 f = {"mac":match.group(1)}
                 if match.group(2) == "user":
@@ -439,13 +439,6 @@ def make_vm_listing(vmname, dirname, vmtype):
             f["state"] = "running"
     return f
 
-def matches(name, patterns):
-    """ checks if name matches one of patterns """
-    import fnmatch
-    for pattern in patterns:
-        if fnmatch.fnmatch(name, pattern):
-            return True
-    return False
 
 def add_ip_address(listing):
     """ Adds IP addresses from ARP into VM listing """
@@ -462,11 +455,12 @@ def add_ip_address(listing):
                 vminfo["ip"] = arp_data[vminfo["mac"]]
             else:
                 vminfo["ip"] = "-"
-def all_vms():
+def all_vms(patterns=["*"]):
     """
     Returns list of tuples  vmname, vmtype, directory
     for all vms
     """
+    import fnmatch
     search_path = [("private", os.path.join(pwd.getpwuid(os.getuid()).pw_dir,
                                             "VWs")),
                    ("shared", config.get("directories", "SharedVMs")),
@@ -478,16 +472,20 @@ def all_vms():
         for vmname in os.listdir(dirname):
             if not os.access(os.path.join(dirname, vmname, "start"), os.X_OK):
                 continue
-            vmlist.append((vmname, vmtype, os.path.join(dirname, vmname)))
+            matches = False
+            for pattern in patterns:
+                if fnmatch.fnmatch(vmname, pattern):
+                    matches = True
+                    break
+            if matches:
+                vmlist.append((vmname, vmtype, os.path.join(dirname, vmname)))
     return vmlist
 def cmd_list(options):
     """ vws list """
     count = 0
     maxlen = 0
     vms = []
-    for vmname, vmtype, dirname in all_vms():
-        if not matches(vmname, options.pattern):
-            continue
+    for vmname, vmtype, dirname in all_vms(options.pattern):
         count += 1
         if maxlen < len(vmname):
             maxlen = len(vmname)
@@ -562,6 +560,9 @@ def cmd_snapshot(options):
 
 def cmd_snapshots(options):
     """ vws snapshots - list existing snapshots """
+    if not options.stopped:
+        print("Cannot list snapshots of running VW", file=sys.stderr)
+        sys.exit(1)
     os.chdir(options.dir)
     drives = get_drives(options.dir)
     lst = []
@@ -575,7 +576,8 @@ def cmd_snapshots(options):
             elif line[0] == '\n':
                 lst.append(info)
                 info = {}
-        lst.append(info)
+        if info:
+            lst.append(info)
     for snap in lst:
         print("%-30s  %+8s  %+8s" % (snap["image"], snap["virtual size"],
                                      snap["disk size"]))
