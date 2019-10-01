@@ -1,3 +1,9 @@
+vws (0.8-1) unstable; urgency=medium
+
+  * Switch to python3
+
+ -- Victor Wagner <vitus@wagner.pp.ru>  Tue, 01 Oct 2019 22:07:09 +0300
+
 vws (0.7-1) unstable; urgency=medium
 
   * Make spiceuri command more robust

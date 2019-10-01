@@ -33,7 +33,7 @@ install: vws vws.1 find_free_port.1 vws.conf vws.service
 	$(INSTALL) -c -m 644 -o root vws.service $(DESTDIR)$(systemddir)
 	$(INSTALL) -c -m 644 -o root vws.init $(DESTDIR)$(initddir)/vws
 
-origtarball: vws find_free_port vws.init vws.service.in  Makefile vws.conf vws.mkd find_free_port.mkd .pylintrc
+origtarball: vws find_free_port vws.init vws.service.in  Makefile vws.conf vws.mkd find_free_port.mkd .pylintrc README.md
 	version=$$(sed -n 's/VERSION = //p' vws); \
 	mkdir vws-$$version; cp $+ vws-$$version; \
 	tar cjf ../vws_$$version.orig.tar.bz2 vws-$$version; \

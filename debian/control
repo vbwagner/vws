@@ -2,13 +2,14 @@ Source: vws
 Section: otherosfs
 Priority: optional
 Maintainer: Victor Wagner <vitus@wagner.pp.ru>
-Build-Depends: debhelper (>= 9), dh-systemd, pandoc
-Standards-Version: 3.9.5
+Build-Depends: debhelper (>= 9.2), pandoc
+Standards-Version: 3.9.8
 Homepage: https://www.wagner.pp.ru/fossil/vws
 
 Package: vws
 Architecture: all
-Depends: ${misc:Depends}, python,  qemu-system, bridge-utils, net-tools
+Depends: ${misc:Depends}, python3,  qemu-system, bridge-utils, net-tools
+Pre-Depends: adduser
 Recommends: dnsmasq, virt-viewer
 Description: Simple manger script for QEMU virtual machines
  Virtual Workstations (VWs) is simple and thin script layer that

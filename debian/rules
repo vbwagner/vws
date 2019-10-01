@@ -21,7 +21,7 @@ export prefix
 # main packaging script based on dh7 syntax
 %:
 	dh $@
-override_dh_build override_dh_auto_build:
+override_dh_auto_build:
 	make prefix=/usr
 override_dh_install:
 	dh_systemd_enable

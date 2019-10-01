@@ -22,7 +22,7 @@ case "$1" in
     configure)
 	update-rc.d vws defaults
 	dpkg-statoverride --list *qemu-bridge-helper|| dpkg-statoverride --update --add root kvm 4750 /usr/lib/qemu/qemu-bridge-helper
-	id -u kvm >/dev/null 2>&1 || adduser --system --ingroup kvm --home /home/virtual/vws --no-create-home kvm
+	id -u kvm >/dev/null 2>&1 || adduser --system --ingroup kvm --home /var/lib/vws kvm
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
