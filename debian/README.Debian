@@ -12,39 +12,50 @@ As bridge is a network interface, root access is needed to manipulate it. QEMU i
 
 Unfortunately, Debian package doesn't install this utility setuid root. So first thing you'll need to use bridge networking from qemu, started as normal user, is to make this utility setuid root.
 
-chmod u+s /usr/lib/qemu/qemu-bridge-helper
+We use dpkg-statoverride mechanism to make utility from other package
+setuid root and executable only by kvm group members
 
-Bee prepared that after upgrade of the qemu package, suid bit would be lost and your vms would fail to start until you fix it with command above.
-Setting up bridge
+May be some capability would suffice.
 
-In any linux system command
+Note, that also you need line
 
-brctl addbr vm0
+allow br0
 
-is used to create bridge interface vm0. After that this interface can be configured via ifconfig or ip command just like any other interface, dnsmasq could be run on it and iptables rules could be set.
+where br0 is your bridge name in the /etc/qemu/brdige.conf (this file is
+not exist on debian systems by default)
 
-But different linux distributions have different ways to automate this task so interface would be created at startup.
-Debian and Ubuntu
+You have to create bridge using some mechanism provided by other means
+(i.e. system network configuration.). If you system is configured by
+ifupdown package, add following lines to your /etc/network/interfaces
+(or some file in /etc/network/interfaces.d)
 
-You should add following to your /etc/network/interfaces:
+# bridge for virtual machines
+auto br0
+iface br0 inet static
+    address 192.168.199.1
+    network 192.168.199.0
+    netmask 255.255.255.0
+    bridge_ports  none
+    bridge_hw 52:54:00:7d:7f:fc
+    post-up iptables -t nat -A POSTROUTING -s 192.168.9.0/24 -j MASQUERADE
+    post-up  iptables -t mangle -A POSTROUTING -p udp  -j CHECKSUM --checksum-fill 
 
-auto vm0
-iface vm0 inet static
-     address 192.168.9.1
-     network 192.168.9.255
-     netmask 255.255.255.0
-     bridge_ports none
-     bridge_hw 11:22:33:44:55:66
+Note that if you dont' specify hw address for your bridge interface,
+windows guests would think they are connected to new network on each
+start.
+
+Last line is needed because some picky dhcp clients expect valid
+IP checksum on dhcp replies, and linux kernel doesn't it by default
+leaving it to network hardware (and we have no hardware on virtual
+interface).
+
+
 
 (of course you can peek any number from 0 to 255 instead of 9 here for third octet of the IP. You can also use addresses from 10.0.0.0/8 or 172.16.0.0/12 instead of 192.168.0.0/16)
 
 You need bridge_hw line (peek any unused mac address you want) because some recent versions of windows recognize bridge interface without static MAC as new network each time they boot.
 
-Interface created this way would be totally isolated from outside world. This is probably not what you want, because you'll at least need to access software updates for your guest os. So, add following line:
-
-post-up iptables -t nat -A POSTROUTING -s 192.168.9.0/24 -j MASQUERADE
-
-and don't forget to enable ipv4 forwaring in the kernel.
+Don't forget to enable ipv4 forwaring in the kernel.
 
 Really it is enough for bridge configuration, if you don't mind to setup static IP for each of your VM manually. But using dnsmasq would save you great deal of effort if you have more then 2-3 virtual machine.
 
