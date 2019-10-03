@@ -50,6 +50,8 @@ def connect_vm(vm_dir):
 
 def send_command(sock, command):
     """ Sends monitor command to given socket and returns answer """
+    if sock is None:
+        raise RuntimeError("None socket is passed to send_command")
     fcntl.flock(sock, fcntl.LOCK_EX)
     try:
         # There can be stray (qemu) prompt in the socket. Try to drain
@@ -187,7 +189,7 @@ def fix_bridge_name(filename):
     f = open(filename, "r+")
     data = f.read()
     idx0 = data.find("-net bridge,br=")
-    if idx != -1:
+    if idx0 != -1:
         idx = data.find("=", idx0)
         idx += 1
         idx2 = data.find(" ", idx)
@@ -254,7 +256,7 @@ def cmd_start(options):
         # Check for correct brige name
         try:
             os.stat("monitor")
-        except OSError:
+        except FileNotFoundError:
             # We cannot find monitor socket. So this machine might be
             # never run on this host
             fix_bridge_name("start")
@@ -262,6 +264,9 @@ def cmd_start(options):
         os.chdir(cwd)
         time.sleep(2)
         options.sock = connect_vm(options.dir)
+        if options.sock is None:
+            print("VM start failed", file=sys.stderr)
+            sys.exit(1)
         if snapshot_id:
             send_command(options.sock, "delvm " + snapshot_id)
     else:
