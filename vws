@@ -213,7 +213,7 @@ def check_for_snapshot(vmdir):
 
     nxt = 0
     with os.popen("qemu-img info \"%s\"" %
-                  (get_drives(vmdir)[0]), "r") as f:
+                  (os.path.join(vmdir, get_drives(vmdir)[0])), "r") as f:
         for line in f:
             if line == 'Snapshot list:\n':
                 nxt = 2
@@ -285,7 +285,7 @@ def cmd_start(options):
 
 def cmd_stop(options):
     """ vws stop """
-    if snapshot_mode(options.sock) or options.hard:
+    if options.hard or snapshot_mode(options.sock):
         try:
             send_command(options.sock, 'quit')
         except IOError as ex:
@@ -332,7 +332,8 @@ def cmd_save(options):
         print(answer, file=sys.stderr)
         sys.exit(1)
     else:
-        send_command(options.sock, 'quit')
+        options.hard = True
+        cmd_stop(options)
 
 def cmd_cdrom(options):
     """ vws cdrom """
@@ -429,19 +430,23 @@ def make_vm_listing(vmname, dirname, vmtype):
     f = {"name":vmname, "type":vmtype}
     sock = connect_vm(dirname)
     if sock is None:
-        f.update({"state":"stopped", "uri":"-", "ip":"-"})
+        if check_for_snapshot(dirname):
+            f['state'] = "sleeping"
+        else:
+            f['state'] = 'stopped '
+        f.update({"uri":"-", "ip":"-"})
         f.update(read_netinfo(os.path.join(dirname, "start")))
     else:
         uri = spiceurl(sock)
         if uri is None:
-            f.update({"state":"problem", "uri":"None", "ip":"-"})
+            f.update({"state":"problem ", "uri":"None", "ip":"-"})
             f.update(read_netinfo(os.path.join(dirname, "start")))
         else:
             f["uri"] = uri[uri.rindex(":")+1:]
             f.update(get_netinfo(sock))
             sock.shutdown(socket.SHUT_RDWR)
             sock.close()
-            f["state"] = "running"
+            f["state"] = "running "
     return f
 
 
