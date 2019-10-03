@@ -791,7 +791,7 @@ def cmd_create(parsed_args):
                "usb":"-usb",
                "rtc":"",
                "extraargs":"${1:+\"$@\"}"}
-    macaddr = ":".join(["%02x" % ord(x) for x in  chr(0x52) + os.urandom(5)])
+    macaddr = ":".join(['52'] + ["%02x" % x for x in  os.urandom(5)])
     if parsed_args.shared:
         machinedir = os.path.join(config.get("directories", "SharedVMs"),
                                   parsed_args.machine)
