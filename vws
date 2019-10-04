@@ -340,11 +340,20 @@ def cmd_cdrom(options):
     if options.id  is None:
         # Search for devices which could be interpreted as CDROM
         devlist = send_command(options.sock, "info block")
-        for dev in  re.findall("([-\\w]+): [^\n]+\n    Removable device:",
-                               devlist):
-            if re.search("cd", dev):
-                options.id = dev
-                break
+        idx = devlist.find("info block")
+        if idx != -1:
+            devlist=devlist[devlist.find("\n",idx)+1:]
+        for dev in  devlist.split("\r\n\r\n"):
+            if dev.find("\n    Removable device: ") == -1:
+                continue
+            if dev.startswith("floppy"):
+                continue
+            dev_id = dev[:dev.find(":")]    
+            idx = dev_id.find(" ")
+            if idx !=  -1:
+                dev_id = dev[:idx]
+            options.id = dev_id    
+            break    
     if options.id is None:
         print("No CDROM device found among:\n" + devlist, file=sys.stderr)
         return 1
