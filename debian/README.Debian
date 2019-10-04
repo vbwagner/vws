@@ -40,7 +40,7 @@ iface br0 inet static
     post-up iptables -t nat -A POSTROUTING -s 192.168.9.0/24 -j MASQUERADE
     post-up  iptables -t mangle -A POSTROUTING -p udp  -j CHECKSUM --checksum-fill 
 
-Note that if you dont' specify hw address for your bridge interface,
+Note that if you don't specify hw address for your bridge interface,
 windows guests would think they are connected to new network on each
 start.
 
