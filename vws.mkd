@@ -430,7 +430,7 @@ Following key names are avalable:
 shift shift_r alt alt_r altgr altgr_r ctrl ctrl_r menu
 esc	 f1  f2  f3 f4  f5  f6  f7  f8  f9 f10 f11 f12
 grave_accent 1 2 3 4 5 6 7 8 9 0 minus  equal backslash backspace 
-tab q w e r t y u i o p bracket_left bracket_right_ret 
+tab q w e r t y u i o p bracket_left bracket_right ret 
 a s d f g  h  j k l semicolon apostrophe
 z  x  c v b n m  comma  dot  slash
 asterisk  spc  caps_lock num_lock  scroll_lock  kp_divide  kp_multiply
