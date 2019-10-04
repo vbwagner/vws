@@ -149,7 +149,7 @@ def read_netinfo(filename):
     """ Reads network information from start script """
     with open(filename, "r") as f:
         for line in f:
-            match = re.search("-net nic,(?:\S*,)?macaddr=(\\S+) -net ([^, ]+)", line)
+            match = re.search("-net nic,(?:\\S*,)?macaddr=(\\S+) -net ([^, ]+)", line)
             if match:
                 f = {"mac":match.group(1)}
                 if match.group(2) == "user":
@@ -342,18 +342,18 @@ def cmd_cdrom(options):
         devlist = send_command(options.sock, "info block")
         idx = devlist.find("info block")
         if idx != -1:
-            devlist=devlist[devlist.find("\n",idx)+1:]
+            devlist = devlist[devlist.find("\n", idx)+1:]
         for dev in  devlist.split("\r\n\r\n"):
             if dev.find("\n    Removable device: ") == -1:
                 continue
             if dev.startswith("floppy"):
                 continue
-            dev_id = dev[:dev.find(":")]    
+            dev_id = dev[:dev.find(":")]
             idx = dev_id.find(" ")
-            if idx !=  -1:
+            if idx != -1:
                 dev_id = dev[:idx]
-            options.id = dev_id    
-            break    
+            options.id = dev_id
+            break
     if options.id is None:
         print("No CDROM device found among:\n" + devlist, file=sys.stderr)
         return 1
@@ -550,7 +550,7 @@ def cmd_sendkey(options):
     """ vws sendkey """
     for keyspec in options.keyspec:
         if keyspec == " ":
-            keyspec="spc"
+            keyspec = "spc"
         print(send_command(options.sock, "sendkey " + keyspec))
 
 def cmd_version(_):
@@ -952,14 +952,14 @@ def main():
                         description="List existing VWs")
     p.add_argument("-l", "--state", const=True, default=False, dest='state',
                    action='store_const', help='Show state of the machine')
-    p.add_argument('-u', "--usb", action='store_const', const=True, 
-	               default=False, dest='usb', help='Show connected USB devices')
+    p.add_argument('-u', "--usb", action='store_const', const=True,
+                   default=False, dest='usb', help='Show connected USB devices')
     p.add_argument("pattern", nargs='*', default='*', help="Name patterns")
     p = cmds.add_parser("version", help="show vws version")
     p = cmds.add_parser("autostart",
                         help="Autostart all VMs marked as autostartable")
     p = cmds.add_parser("shutdown", help="shut down all running VMs")
-    p.add_argument('-w', "--wait", 
+    p.add_argument('-w', "--wait",
                    help="wait until all machines would be shutdown",
                    action="store_const", const=True, default=False, dest="wait")
     p.add_argument('-t', "--timeout", type=int, default=90,
@@ -1019,9 +1019,10 @@ def main():
     # Screenshoits and recording
     p = new_command(cmds, 'screenshot', help='take a screenshot',
                     description='Takes a screenshot',
-                    epilog="""Writes current screen contents of the virtual machine into PPM format file""")
+                    epilog="Writes current screen contents of the virtual " +
+                    "machine into PPM format file")
     p.add_argument('filename', metavar='filename.ppm',
-	               help='PPM image filename to write screenshot to')
+                   help='PPM image filename to write screenshot to')
     p = new_command(cmds, 'record', help='Record audio output from VM')
     p.add_argument('filename', help='wav file to record autdio to')
     new_command(cmds, 'stoprecord', help='stop recording audio')
@@ -1082,7 +1083,7 @@ def main():
     if parsed_args.command == 'create':
         try:
             cmd_create(parsed_args)
-        except Exception as ex:
+        except Exception as ex: # pylint: disable=broad-except
             print(str(ex), file=sys.stderr)
             if hasattr(parsed_args, "dir"):
                 import shutil
