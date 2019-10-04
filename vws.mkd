@@ -326,6 +326,39 @@ Detaches USB device.
 SNAPSHOTS
 ---------
 
+**vws snapshot** *machine*  *name*
+
+Creates named snapshot. This means that there would be additional image
+file for each virtual disks. All writes would go to new file, and
+previous file would be unchanged until commit operation. Note that 
+having long chain of snapshots significantly slower disk IO operations.
+
+**vws** allows snapshots be made only when virtual machine is stopped.
+
+**vws** **commit** *machine*
+
+Writes changes in the current snapshot into previous one.
+There would be one snapshot less for this machine after this operation.
+
+If this operation is performed on stopped machine it operates on stack
+of snapshots created by **vws** **snapshot** command.
+
+If it is performed on running machine, this machine should run in the
+snapshot mode (see **start** command for details) and changes made since
+start in the snapshot mode are committed into permanent images.
+
+**vws** **revert** *machine*
+
+Discard changes made to disks since last **vms snapshot** command
+and recreates snapshot. This command can be only performed
+on stopped machine. Number of snapshots would be same after this
+command.
+
+**vws** **snapshots** *machine*
+
+List named snapshots available for given machine. This command
+can be used on running machine, despite of that machine must be shutdown 
+before snapshots could be committed or reverted.
 
 MISCELLANEA
 -----------

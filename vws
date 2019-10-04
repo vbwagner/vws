@@ -582,14 +582,11 @@ def cmd_snapshot(options):
 
 def cmd_snapshots(options):
     """ vws snapshots - list existing snapshots """
-    if not options.stopped:
-        print("Cannot list snapshots of running VW", file=sys.stderr)
-        sys.exit(1)
     os.chdir(options.dir)
     drives = get_drives(options.dir)
     lst = []
     info = {}
-    with os.popen("qemu-img info --backing-chain " + drives[0], "r") as f:
+    with os.popen("qemu-img info -U --backing-chain " + drives[0], "r") as f:
         for line in f:
             if line.find(": ") != -1:
                 var, val = line.strip().split(": ")
@@ -644,7 +641,7 @@ def cmd_commit(options):
     """
     if options.stopped:
         #
-        # Stoppend vm - last snapshot is commited into its backing file.
+        # Stopped vm - last snapshot is commited into its backing file.
         # Backing file is made current drive image
         #
         os.chdir(options.dir)
@@ -955,16 +952,17 @@ def main():
                         description="List existing VWs")
     p.add_argument("-l", "--state", const=True, default=False, dest='state',
                    action='store_const', help='Show state of the machine')
-    p.add_argument("--usb", action='store_const', const=True, default=False,
-                   dest='usb', help='Show connected USB devices')
+    p.add_argument('-u', "--usb", action='store_const', const=True, 
+	               default=False, dest='usb', help='Show connected USB devices')
     p.add_argument("pattern", nargs='*', default='*', help="Name patterns")
     p = cmds.add_parser("version", help="show vws version")
     p = cmds.add_parser("autostart",
                         help="Autostart all VMs marked as autostartable")
     p = cmds.add_parser("shutdown", help="shut down all running VMs")
-    p.add_argument("--wait", help="wait until all machines would be shoutdown",
+    p.add_argument('-w', "--wait", 
+                   help="wait until all machines would be shutdown",
                    action="store_const", const=True, default=False, dest="wait")
-    p.add_argument("--timeout", type=int, default=90,
+    p.add_argument('-t', "--timeout", type=int, default=90,
                    help="how long to way for VMs shutdown before forcing it off")
     # Power management
     p = new_command(cmds, 'start', help='Start VW and connect to console',
@@ -1019,12 +1017,20 @@ def main():
                     help='Commit snapshot changes into backing file')
     p = new_command(cmds, 'snapshots', help='List existing snapshots')
     # Screenshoits and recording
-    p = new_command(cmds, 'screenshot', help='take a screenshot')
-    p.add_argument('filename', help='PPM image filename to write screenshot to')
+    p = new_command(cmds, 'screenshot', help='take a screenshot',
+                    description='Takes a screenshot',
+                    epilog="""Writes current screen contents of the virtual machine into PPM format file""")
+    p.add_argument('filename', metavar='filename.ppm',
+	               help='PPM image filename to write screenshot to')
     p = new_command(cmds, 'record', help='Record audio output from VM')
     p.add_argument('filename', help='wav file to record autdio to')
     new_command(cmds, 'stoprecord', help='stop recording audio')
-    p = new_command(cmds, 'sendkey', help='Send a keystroke to VM')
+    p = new_command(cmds, 'sendkey', help='Send a keystroke to VM',
+                    description='Send a key combination into VM',
+                    epilog='Each key combination should be passed as separate' +
+                    'argument.\nAll non-alphanumeric keys should be passed by' +
+                    'names, not characters\n(see table in the manual).'
+                    )
     p.add_argument('keyspec', help='key specification like ctrl-alt-delete',
                    nargs='+')
     # Create new VM
