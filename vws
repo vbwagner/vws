@@ -548,7 +548,10 @@ def cmd_stoprecord(options):
 
 def cmd_sendkey(options):
     """ vws sendkey """
-    print(send_command(options.sock, "sendkey " + options.keyspec))
+    for keyspec in options.keyspec:
+        if keyspec == " ":
+            keyspec="spc"
+        print(send_command(options.sock, "sendkey " + keyspec))
 
 def cmd_version(_):
     """ vws cersion """
@@ -1022,7 +1025,8 @@ def main():
     p.add_argument('filename', help='wav file to record autdio to')
     new_command(cmds, 'stoprecord', help='stop recording audio')
     p = new_command(cmds, 'sendkey', help='Send a keystroke to VM')
-    p.add_argument('keyspec', help='key specification like ctrl-alt-delete')
+    p.add_argument('keyspec', help='key specification like ctrl-alt-delete',
+                   nargs='+')
     # Create new VM
     p = new_command(cmds, 'create', help="Create new VW")
     p.add_argument("--no-usb", help="Disable USB controller", action='store_const',

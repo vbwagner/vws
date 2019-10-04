@@ -50,7 +50,7 @@ SYNOPSIS
 
 **vws stoprecord**  *name*
 
-**vws sendkey** *name* *keyspec*
+**vws sendkey** *name* *keyspec*...
 
 **vws monitor** *name*
 
@@ -369,7 +369,7 @@ which limits machines to be shown. Don't forget to quote pattern from shell. It
 should be expanded. **--usb** option lists USB devices connected to the
 virtual machine using **vws usb** command.
 
-**vws sendkey** *machine* *keyspec*
+**vws sendkey** *machine* *keyspec*...
 
 Allows to send some key combination to the virtual machine. For example
 if windows screen is locked spice client is sometimes unable to deliver
@@ -377,28 +377,35 @@ key stroke to the virtual machine in order to get it out of sleep.
 
 In this case **vws sendkey** *machine* **ctrl-alt-delete** helps.
 
-One **vws sendkey** command sends only one key combination
+Each key combination should be passed to  **vws sendkey** as separate
+argument. Not all ascii characters can be specified as arguments.
+I.e. it is not possible to determine whether colon should be
+send as shift-;
 
 See **KEY SPECS** below about format of key specification.
+
+Keys send via this command are subject of guest keyboard mapping.
+So, you can switch keyboard layout by sending switching key sequence
+and then send text on non-latin language.
 
 KEY SPECS
 =========
 
 Following key names are avalable:
 
-shift shift_r alti alt_r altgr altgr_r ctrl ctrl_r menu
-
-esc	1 2 3 4 5 6 7 8
-9 0 minus  equal backspace  tab
-q w e r t y u i o p ret 
-a s d f  g  h  j k l
-z  x  c  v b n m  comma  dot  slash
-asterisk  spc  caps_lock  f1  f2  f3 f4  f5  f6  f7  f8  f9
-f10  num_lock  scroll_lock  kp_divide  kp_multiply
+```
+shift shift_r alt alt_r altgr altgr_r ctrl ctrl_r menu
+esc	 f1  f2  f3 f4  f5  f6  f7  f8  f9 f10 f11 f12
+grave_accent 1 2 3 4 5 6 7 8 9 0 minus  equal backslash backspace 
+tab q w e r t y u i o p bracket_left bracket_right_ret 
+a s d f g  h  j k l semicolon apostrophe
+z  x  c v b n m  comma  dot  slash
+asterisk  spc  caps_lock num_lock  scroll_lock  kp_divide  kp_multiply
 kp_subtract kp_add  kp_enter  kp_decimal  sysrq  kp_0  kp_1
-kp_2  kp_3  kp_4  kp_5  kp_6  kp_7 kp_8  kp_9  <  f11  f12  
+kp_2  kp_3  kp_4  kp_5  kp_6  kp_7 kp_8  kp_9  less   
 print home  pgup  pgdn  end  left  up
 down  right  insert  delete
+```
 
 Several key names can be joined together with '-' sign to form key with
 modificators sequence.
