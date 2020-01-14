@@ -92,6 +92,23 @@ It is allowed to redirect USB devices either via SPICE (i.e. from the
 user workplace), or from host where VW is running. ISO images can be
 mounted as CDROMs only from host.
 
+USERS AND GROUPS
+================
+
+Most linux systems allow to run virtual machines to any user, who is
+member of group **kvm**. **vws** makes same assumption. VMs are running
+under rights of invoking user.
+
+VWs, autostarted during system boot, however, need special user to run
+under.
+
+If you use bridge networking, QEMU would need administrative rights to
+add its virtual interface to the bridge. QEMU includes special utility
+**qemu-bridge-helper**, which is designed to run with elevated
+privileges, and safely can be installed setuid root. It only allows
+actions on bridge interface, which is listed in **allow** statement
+in **/etc/qemu/bridge.conf**.
+
 VW CREATION
 ===========
 
@@ -146,6 +163,8 @@ To use this mode, you have to perform following setup tasks
 1. Make qemu-bridge-helper utility setuid root. (it is designed to run
 setuid root, but Debian doesn't install it such way). It is required to
 allow qemu, started from non-root user to add interface to bridge.
+(this is done automatically by postinst script in Debian package).
+
 2. Create bridge interface to use. You can have several bridges and
 specify which one would be used on VW creation. Really, by manual
 editing of the startup script, you can add several network interfaces to
@@ -164,6 +183,7 @@ or some distribution-specific configuration file.
 3. Setup you host system to forward packets from bridge network to
 outside internet. You can either use NAT, or include your ethernet
 interface into bridge.
+
 4. Make sure DHCP server is running in the bridge network. If your
 ethernet interface is part of the bridge, VWs would get their dynamic IP
 from your network router. If you use NAT, you'll need to run DHCP
@@ -468,8 +488,6 @@ If you are using more or less sensible disk layout, i.e. create separate partiti
 
 It is recommended to have both these directories on the same partition, so moving VM from autostart to shared and vice versa would not involve physically copying of the files.
 
-**NB** *autostart is planned for version 0.3*
-
 Permissions
 -----------
 
@@ -490,24 +508,28 @@ This section list default values, used by **vws create** to create new virtual m
 
 Following parameters can be used:
 
-* **net=user** or **net=**_inteface name_ - network type by default. Can be either **user** or name of existing brige interface. If you have [set up bridge, you'll probably want to specify name of bridge interface here.
+* **net=user** or **net=**_inteface name_ - network type by default. Can
+be either **user** or name of existing bridge interface. If you have set up bridge, you'll probably want to specify name of bridge interface here.
  
-* **size=**_virtual disk size* - size of the disk image to create by default. 20G is probably big enough for most modern OS-es and small enough to fit on the modern disks. Note that we use **qcow2** format, so all disk space is not preallocated. You can use G or M suffixes to specify size.
+* **size=**_virtual disk sizex_ - size of the disk image to create by default. 20G is probably big enough for most modern OS-es and small enough to fit on the modern disks. Note that we use **qcow2** format, so all disk space is not preallocated. You can use G or M suffixes to specify size.
 
 * **mem=**_memory size_ - default memory size. Also can have M or G suffix.
 
-* **diskif=**_interface_ where _interface_ can be **ide**, **scsi** or **virtio**. Disk interface. **virtio** offer best performance, but only if supported by quest operating system. **ide** offers best compatibilty. Windows vms must be created with ide, although it is possible to convert to virtio after installation.
+* **diskif=**_interface_ where _interface_ can be **ide**, **scsi** or
+ **virtio**. Disk interface. **virtio** offer best performance, but
+ only if supported by quest operating system. **ide** offers best
+ compatibility. Windows vms must be created with ide, although it is possible to convert to virtio after installation.
 
 * **arch=**_architecture_ In most cases your choice is limited between **i386** and **x86_64**. Although you probably have qemu binaries for many other architectures, and it is theoretically possible to use them, they would be emulated without hardware acceleration and require some queer QEMU parameters, which are not supported by **vws** now.
 
-* **sound=**_list of sound cards)  specify which sound cards are emulated in the virtual machine. In most cases **hda** is all you need. But qemu supports long list of sound cards which can be found out by typing:
+* **sound=**_list of sound cards_  specify which sound cards are emulated in the virtual machine. In most cases **hda** is all you need. But qemu supports long list of sound cards which can be found out by typing:
 
         qemu-system-i386 -soundhw help
 
     You can specify several of them, separated by comma.
 
 
-* **vga=**_type_ Type of emulated videoadapter **qxl** offers best performance with spice, but have mouse glitches with some old versions of X11. If you encounter such a problem, try to use some other type of videoadapter, listed on the manual page **qemu-system**(1).
+* **vga=**_type_ Type of emulated video adapter **qxl** offers best performance with spice, but have mouse glitches with some old versions of X11. If you encounter such a problem, try to use some other type of videoadapter, listed on the manual page **qemu-system**(1).
 
 TOOLS SECTION
 -------------
@@ -548,7 +570,8 @@ Each virtual machine directory contains:
 FILES
 =====
 
-**/etc/vws.conf**, _\${HOME}_**/.vwsrc**, _\${HOME}_**/VWs**
+**/etc/vws.conf**, _\${HOME}_**/.vwsrc**, _\${HOME}_**/VWs**,
+**/etc/qemu/bridge.conf**
 
 
 SEE ALSO
