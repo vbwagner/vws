@@ -313,13 +313,19 @@ def cmd_monitor(options):
                 answer = send_command(options.sock, cmd.rstrip())
                 idx = answer.index('\n')
                 print(answer[idx+1:], end="")
+                eol = answer.endswith("\n")
                 sys.stdout.flush()
             elif options.sock in readfd:
                 print("UNSOLICITED MESSAGE %" +
-                      options.sock.readline().rstrip())
+                      options.sock.recv(1000).decode("utf-8").rstrip())
+                eol = True      
     except KeyboardInterrupt:
+        if not eol:
+            print("")
+        eol = True
         print("Keyboard interrupt")
-
+    if not eol:
+        print("")
 def cmd_reset(options):
     """ vws reset """
     print(send_command(options.sock, 'system_reset'))
