@@ -11,9 +11,13 @@ import errno
 import re
 import os
 import os.path
+import fnmatch
+import shlex
+import shutil
 import sys
 import time
 import pwd
+import grp
 
 VERSION = 0.8
 def find_vm(name):
@@ -43,9 +47,9 @@ def connect_vm(vm_dir):
             # virtal machine is not running
             return None
         raise ex
-    readfd, dummy_w, dummy_x = select.select([sock], [], [], 0.1)
+    readfd, _, _ = select.select([sock], [], [], 0.1)
     if sock in readfd:
-        dummy_greeting = sock.recv(1024)
+        _ = sock.recv(1024)
     return sock
 
 def send_command(sock, command):
@@ -230,16 +234,19 @@ def make_start_cmdline(options):
     Append options passed from vws commandline to start script
     commandline
     """
-    arg = ""
+    arg = []
     if options.cdrom:
-        arg = " -cdrom " + os.path.abspath(options.cdrom[0])
+        arg.append("-cdrom")
+        arg.append(os.path.abspath(options.cdrom[0]))
     if options.snapshot:
-        arg = arg+" -snapshot"
+        arg.append("-snapshot")
     if options.args:
-        arg = arg + " " + "".join(options.args)
+        arg.append( "".join(options.args))
     if options.password:
         os.environ["SPICE_PASSWORD"] = options.password[0]
-    return arg
+    if arg:
+        return shlex.join(arg)
+    return ""
 def cmd_start(options):
     """ vws start """
     if not "DISPLAY" in os.environ:
@@ -252,7 +259,7 @@ def cmd_start(options):
         # Check for snapshot
         snapshot_id = check_for_snapshot(options.dir)
         if snapshot_id is not None:
-            arg = arg + " -loadvm " + snapshot_id
+            arg = arg + " " + shlex.join(["-loadvm", snapshot_id])
         # Check for correct brige name
         try:
             os.stat("monitor")
@@ -318,7 +325,7 @@ def cmd_monitor(options):
             elif options.sock in readfd:
                 print("UNSOLICITED MESSAGE %" +
                       options.sock.recv(1000).decode("utf-8").rstrip())
-                eol = True      
+                eol = True
     except KeyboardInterrupt:
         if not eol:
             print("")
@@ -480,12 +487,11 @@ def add_ip_address(listing):
                 vminfo["ip"] = arp_data[vminfo["mac"]]
             else:
                 vminfo["ip"] = "-"
-def all_vms(patterns=["*"]):
+def all_vms(patterns=("*",)):
     """
     Returns list of tuples  vmname, vmtype, directory
     for all vms
     """
-    import fnmatch
     search_path = [("private", os.path.join(pwd.getpwuid(os.getuid()).pw_dir,
                                             "VWs")),
                    ("shared", config.get("directories", "SharedVMs")),
@@ -532,14 +538,12 @@ def cmd_list(options):
 
 def cmd_screenshot(options):
     """ vws screenshot """
-    from os.path import abspath
-    filename = abspath(options.filename)
+    filename = os.path.abspath(options.filename)
     print(send_command(options.sock, "screendump " + filename))
 
 def cmd_record(options):
     """ vws record """
-    from os.path import abspath
-    filename = abspath(options.filename)
+    filename = os.path.abspath(options.filename)
     print(send_command(options.sock, "wavcapture " + filename))
 
 def cmd_stoprecord(options):
@@ -712,7 +716,6 @@ def cmd_shutdown(options):
     dirlist = [config.get("directories", "AutostartVMs"),
                config.get("directories", "SharedVms")]
     if os.getresuid()[1] == 0:
-        import grp
         dirlist += map(lambda x: os.path.expanduser("~"+x)+"/VWs",
                        grp.getgrnam(config.get("permissions",
                                                "vm_group")).gr_mem)
@@ -847,16 +850,16 @@ def cmd_create(parsed_args):
 
     if os.path.exists(machinedir):
         if os.path.exists(os.path.join(machinedir, "start")):
-            raise OSError("Virtual Worstation %s already exists" %
+            exc = OSError("Virtual Worstation %s already exists" %
                           parsed_args.machine)
         else:
-            raise OSError("Cannot create VW directory, " +
+            exc = OSError("Cannot create VW directory, " +
                           "something on the way")
+        raise exc
     #  Creating directory for VM
     os.makedirs(machinedir, dirmode)
     parsed_args.dir = machinedir
     if parsed_args.shared:
-        import grp
         gid = grp.getgrnam(config.get("permissions", "vm_group")).gr_gid
         uid = os.getuid()
         os.chown(machinedir, uid, gid)
@@ -942,8 +945,10 @@ def config_defaults(conf):
 def read_config(conf):
     """ Read configration files """
     if os.getuid() != 0:
+        home = pwd.getpwuid(os.getuid()).pw_dir
         conf.read(['/etc/vws.conf',
-                   os.path.join(pwd.getpwuid(os.getuid()).pw_dir, '.vwsrc')])
+                   os.path.join(home, ".config", "vws", "vws.conf"),
+                   os.path.join(home, '.vwsrc')])
     else:
         conf.read(['/etc/vws.conf'])
 def main():
@@ -1092,7 +1097,6 @@ def main():
         except Exception as ex: # pylint: disable=broad-except
             print(str(ex), file=sys.stderr)
             if hasattr(parsed_args, "dir"):
-                import shutil
                 shutil.rmtree(parsed_args.dir)
                 sys.exit(1)
         sys.exit(0)
