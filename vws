@@ -19,7 +19,7 @@ import time
 import pwd
 import grp
 
-VERSION = 0.8
+VERSION = "0.8.1"
 def find_vm(name):
     """ Search and return VM directory """
     search_path = [os.path.join(pwd.getpwuid(os.getuid()).pw_dir, "VWs"),
@@ -146,6 +146,7 @@ def get_drives(vm_dir):
 
 def snapshot_mode(sock):
     """ Returns True if VM is running in snapshot mode """
+    print("Entering snapshot_mode", file=sys.stderr)
     answer = send_command(sock, "info block")
     return re.search(": /tmp", answer) is not None
 
@@ -174,6 +175,10 @@ def get_netinfo(sock):
     if match:
         return {"iface":"user", "ip":match.group(1),
                 "mac":match.group(2)}
+    match = re.search("hub0port1:.*.br=(\\S+).*hub0port0:.*macaddr=(\\S+)",
+                      answer, flags=re.S)             
+    if match:
+        return {"iface":match.group(1), "mac":match.group(2)}
     print(answer, file=sys.stderr)
     return {"iface":"unknown", "ip":"?", "mac":"?", "card":"?"}
 #
@@ -292,6 +297,7 @@ def cmd_start(options):
 
 def cmd_stop(options):
     """ vws stop """
+    print("entering cmd_stop", file=sys.stderr)
     if options.hard or snapshot_mode(options.sock):
         try:
             send_command(options.sock, 'quit')
