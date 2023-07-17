@@ -1,22 +1,29 @@
 #!/usr/bin/python3
-import sys, socket, errno
-if len(sys.argv)>1:
-	port = int(sys.argv[1])
+"""
+Script with tries to find free port to bind starting
+with specified in the command line (or 5900) if none.
+See manual page find_free_port(1)
+"""
+import sys
+import socket
+import errno
+
+# pylint: disable=invalid-name
+if len(sys.argv) > 1:
+    port = int(sys.argv[1])
 else:
-	port = 5900
-    
+    port = 5900
+
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 while True:
     try:
         s.bind(("", port))
     except socket.error as e:
-        if e.errno== errno.EADDRINUSE:
-            port+=1
+        if e.errno == errno.EADDRINUSE:
+            port += 1
             continue
-        else:
-            raise e
+        raise e
     break
 
 s.close()
 print(port)
-    
