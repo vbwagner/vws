@@ -23,6 +23,7 @@ VERSION = "0.8.1"
 
 config = ConfigParser(interpolation=None)  # pylint: disable=invalid-name
 
+
 def find_vm(name):
     """Search and return VM directory"""
     search_path = [
@@ -93,13 +94,14 @@ def spiceurl(sock):
             continue
         idx = line.find("address:")
         if idx != -1:
-            url = line[idx + 9 :]
+            url = line[idx + 9:]
             if url.startswith("*:"):
                 url = socket.getfqdn() + url[1:]
     if url is None:
         if output.rstrip().endswith("(qemu)"):
             return spiceurl(sock)
-        print("ERROR parsing 'info spice' output:«%s»" % output, file=sys.stderr)
+        print("ERROR parsing 'info spice' output:«%s»" % output,
+              file=sys.stderr)
         return None
     return "spice://" + url.rstrip("\r")
 
@@ -220,7 +222,7 @@ def fix_bridge_name(filename):
             idx += 1
             idx2 = data.find(" ", idx)
             bridgename = data[idx:idx2]
-            if not bridgename in list_bridges():
+            if bridgename not in list_bridges():
                 net = config.get("create options", "net")
                 if net == "user":
                     data = data[:idx0] + "-net user" + data[idx2:]
@@ -275,7 +277,7 @@ def make_start_cmdline(options):
 
 def cmd_start(options):
     """vws start"""
-    if not "DISPLAY" in os.environ:
+    if "DISPLAY" not in os.environ:
         # If cannot start GUI just don't do it.
         options.gui = False
     if options.stopped:
@@ -342,7 +344,8 @@ def cmd_monitor(options):
         print("(qemu) ", end="")
         sys.stdout.flush()
         while True:
-            readfd, dummy_w, dummy_x = select.select([sys.stdin, options.sock], [], [])
+            readfd, dummy_w, dummy_x = select.select([sys.stdin, options.sock],
+                                                     [], [])
             if sys.stdin in readfd:
                 cmd = sys.stdin.readline()
                 # Check for eof
@@ -350,7 +353,7 @@ def cmd_monitor(options):
                     break
                 answer = send_command(options.sock, cmd.rstrip())
                 idx = answer.index("\n")
-                print(answer[idx + 1 :], end="")
+                print(answer[idx + 1:], end="")
                 eol = answer.endswith("\n")
                 sys.stdout.flush()
             elif options.sock in readfd:
@@ -391,7 +394,7 @@ def cmd_cdrom(options):
         devlist = send_command(options.sock, "info block")
         idx = devlist.find("info block")
         if idx != -1:
-            devlist = devlist[devlist.find("\n", idx) + 1 :]
+            devlist = devlist[devlist.find("\n", idx) + 1:]
         for dev in devlist.split("\r\n\r\n"):
             if dev.find("\n    Removable device: ") == -1:
                 continue
@@ -413,7 +416,8 @@ def cmd_cdrom(options):
         answer = send_command(options.sock, "eject " + options.id)
     else:
         answer = send_command(
-            options.sock, "change %s %s" % (options.id, os.path.abspath(options.file))
+            options.sock, "change %s %s" % (options.id,
+                                            os.path.abspath(options.file))
         )
     print(answer)
     return 0
@@ -510,7 +514,7 @@ def make_vm_listing(vmname, dirname, vmtype):
             f.update({"state": "problem ", "uri": "None", "ip": "-"})
             f.update(read_netinfo(os.path.join(dirname, "start")))
         else:
-            f["uri"] = uri[uri.rindex(":") + 1 :]
+            f["uri"] = uri[uri.rindex(":") + 1:]
             f.update(get_netinfo(sock))
             sock.shutdown(socket.SHUT_RDWR)
             sock.close()
@@ -528,7 +532,7 @@ def add_ip_address(listing):
     for bridge in bridges:
         arp_data.update(parse_arp(bridge))
     for vminfo in listing:
-        if "mac" in vminfo and not "ip" in vminfo:
+        if "mac" in vminfo and "ip" not in vminfo:
             if vminfo["mac"] in arp_data:
                 vminfo["ip"] = arp_data[vminfo["mac"]]
             else:
@@ -839,9 +843,9 @@ else
 fi
 SPICE_PORT=$(find_free_port 5900)
 if [ "$1" = '-cdrom' ]; then
-	shift
-	CDROM=",file=$1"
-	shift
+    shift
+    CDROM=",file=$1"
+    shift
 fi
 #set umask to make machine group-accessable
 umask 002
@@ -905,7 +909,7 @@ def cmd_create(parsed_args):
         dirmode = 0o775
     if parsed_args.net != "user":
         bridges = list_bridges()
-        if not parsed_args.net in bridges:
+        if parsed_args.net not in bridges:
             raise ValueError(
                 "No such bridge %s. Available ones %s"
                 % (parsed_args.net, ", ".join(bridges))
@@ -918,7 +922,7 @@ def cmd_create(parsed_args):
         options["net"] = "-net nic,macaddr=%s -net user" % (macaddr,)
     options["qemubinary"] = "qemu-system-" + parsed_args.arch
     options["vga"] = parsed_args.vga
-    if not parsed_args.arch in ("i386", "x86_64"):
+    if parsed_args.arch not in ("i386", "x86_64"):
         print(NOACCEL + "target architecture", file=sys.stderr)
         options.accel = ""
     elif not os.access("/dev/kvm", os.W_OK):
@@ -1017,10 +1021,6 @@ def new_command(cmd_parser, name, **kwargs):
 #
 # prepare defaults for config
 #
-
-
-
-
 def config_defaults(conf):
     """Set default values for config options"""
     arch = os.uname()[4]
@@ -1076,7 +1076,7 @@ def read_config(conf):
 def main():
     """Parse an arguments and execute everything"""
     # pylint: disable=too-many-branches, too-many-statements
-    global config # pylint: disable=invalid-name, global-variable-not-assigned
+    global config  # pylint: disable=invalid-name, global-variable-not-assigned
     config_defaults(config)
     read_config(config)
     # Parse argument
@@ -1398,7 +1398,7 @@ def main():
         parsed_args.dir = find_vm(parsed_args.machine)
         parsed_args.sock = connect_vm(parsed_args.dir)
         if parsed_args.sock is None:
-            if not parsed_args.command in stopped_vm_commands:
+            if parsed_args.command not in stopped_vm_commands:
                 print(
                     "Virtual machine %s is not running." % parsed_args.machine,
                     file=sys.stderr,
